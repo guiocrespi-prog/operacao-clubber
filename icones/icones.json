@@ -1,0 +1,18 @@
+{
+  "avatares": {
+    "chapeu": "personagens/chapeu.webp",
+    "franjinha": "personagens/franjinha.webp",
+    "bigode": "personagens/bigode.webp",
+    "doutor": "personagens/doutor.webp",
+    "oculos": "personagens/oculos.webp",
+    "cachos": "personagens/cachos.webp",
+    "listrado": "personagens/listrado.webp",
+    "trancinha": "personagens/trancinha.webp",
+    "platinado": "personagens/platinado.webp",
+    "camisa-azul": "personagens/camisa-azul.webp"
+  },
+  "cartas": {
+    "civil": "cartas/civil.svg"
+  },
+  "palavras": {}
+}

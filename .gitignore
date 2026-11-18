@@ -1,0 +1,5 @@
+# Fica só no computador: originais grandes, gerador e configurações locais
+/personagens/
+icones/gerar-personagens.py
+icones/preview.html
+.claude/

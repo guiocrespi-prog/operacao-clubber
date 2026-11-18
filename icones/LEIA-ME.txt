@@ -1,0 +1,29 @@
+ÍCONES DO OPERAÇÃO CLUBBER
+==========================
+
+Tudo é listado em icones.json. Se um item faltar, o jogo usa o carimbo padrão.
+
+1) Personagens dos jogadores ("avatares")
+   Cada jogador escolhe um ao entrar na sala; cada personagem só pode ser de uma pessoa.
+   Carta de agente revelada mostra o personagem de alguém que está naquele time.
+   "avatares": {
+     "chapeu":  "personagens/chapeu.webp",
+     "doutor":  "personagens/doutor.webp"
+   }
+   O nome (chave) aparece na tela: "camisa-azul" vira "Camisa azul".
+   Use retrato quadrado de busto, sem fundo. Os originais grandes ficam em
+   ../personagens/; aqui vão versões leves (384 px, WEBP, ~30 KB cada).
+
+2) Arte de civil e assassino ("cartas")
+   "cartas": {
+     "civil":     "cartas/civil.svg",
+     "assassino": "cartas/assassino.svg"
+   }
+
+3) Ícone de uma palavra ("palavras"), aparece na carta fechada:
+   "palavras": {
+     "CACHORRO": "palavras/cachorro.png"
+   }
+   A palavra pode ter ou não acento e maiúsculas; o jogo compara sem isso.
+
+Depois de mudar, publique a pasta inteira de novo (index.html + icones/).

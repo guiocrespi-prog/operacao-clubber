@@ -1,0 +1,1301 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f1720">
+<title>Operação Clubber</title>
+<link rel="icon" type="image/svg+xml" href="icones/cartas/logo-selo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@500;600;700;800&display=swap">
+<style>
+/* Linguagem de adesivo, a mesma dos personagens: contorno grosso cor de ameixa, cor chapada, sombra dura deslocada.
+   Mesa: Vermelho à esquerda | recado + tabuleiro + dica | Azul + histórico à direita.
+   Celular: placar, tabuleiro, dica presa embaixo, times lado a lado, histórico. */
+:root{
+  --bg:#1f1720; --bg-dot:rgba(255,240,230,.05); --panel:#2c2130; --panel-2:#3a2c3e; --line:#4b3a4e;
+  --outline:#140c13; --ink:#fff4e8; --muted:#cbb8c6; --faint:#8f7c8c;
+  --paper:#fff1d8; --paper-2:#f4dfbd; --print:#3d2730;
+  --red:#d8483b; --red-dk:#93281f; --red-tint:#ffc6b8;
+  --blue:#3480d6; --blue-dk:#1d4a80; --blue-tint:#bad6f6;
+  --civil:#e2cfa4; --assassin:#221720;
+  --sun:#ffb02e; --mint:#7ed957;
+  --bw:3px; --drop:0 4px 0 var(--outline);
+  --display:"Baloo 2","Arial Rounded MT Bold","Trebuchet MS",sans-serif;
+  --body:"Nunito","Segoe UI",system-ui,sans-serif;
+  --pop:cubic-bezier(.34,1.56,.64,1); --ease:cubic-bezier(.16,1,.3,1);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+[hidden]{display:none!important}
+body{background-color:var(--bg);background-image:radial-gradient(var(--bg-dot) 1.3px,transparent 1.4px);background-size:22px 22px;
+  color:var(--ink);font:600 15px/1.5 var(--body);min-height:100dvh;-webkit-tap-highlight-color:transparent;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
+h1,h2,h3{font-family:var(--display);margin:0;font-weight:800;line-height:1.1;text-wrap:balance}
+.label{font:800 11px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+
+/* botões de adesivo: afundam ao apertar */
+.btn{border:var(--bw) solid var(--outline);border-radius:12px;background:var(--panel-2);color:var(--ink);padding:8px 16px;
+  font:800 15px/1.2 var(--body);box-shadow:var(--drop);transition:transform .08s,box-shadow .08s,background .15s}
+.btn:hover{background:#46374a}
+.btn:active{transform:translateY(4px);box-shadow:0 0 0 var(--outline)}
+.btn.primary{background:var(--sun);color:var(--print)} .btn.primary:hover{background:#ffbd4f}
+.btn.red{background:var(--red);color:#fff} .btn.blue{background:var(--blue);color:#fff}
+.btn.danger{background:var(--panel);color:#ffad9f}
+.btn.small{padding:4px 11px;font-size:13px;border-radius:10px;border-width:2.5px;box-shadow:0 3px 0 var(--outline)}
+.btn.small:active{transform:translateY(3px)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:var(--drop)}
+input[type=text],select,textarea{border:var(--bw) solid var(--outline);background:var(--paper);color:var(--print);border-radius:12px;padding:9px 12px;
+  min-width:0;font:700 16px var(--body);box-shadow:inset 0 3px 0 rgba(61,39,48,.12)}
+input::placeholder,textarea::placeholder{color:#a8918c}
+input[type=text]:focus,select:focus,textarea:focus{outline:3px solid var(--sun);outline-offset:1px}
+textarea{width:100%;min-height:150px;resize:vertical;font-size:15px;line-height:1.5}
+
+/* marca */
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.selo{flex:none;height:auto;filter:drop-shadow(0 4px 0 var(--outline))}
+.wordmark{font:800 1em/0.95 var(--display);color:var(--ink);letter-spacing:-.01em;text-shadow:0 3px 0 var(--outline);
+  -webkit-text-stroke:var(--wm-stroke,0) var(--outline);paint-order:stroke fill}
+.wordmark em{font-style:normal;color:var(--sun)}
+.spark{position:absolute;width:18px;height:18px;animation:twinkle 2.4s ease-in-out infinite}
+@keyframes twinkle{0%,100%{transform:scale(.6) rotate(0);opacity:.5}50%{transform:scale(1.1) rotate(20deg);opacity:1}}
+@keyframes boia{0%,100%{transform:translateY(0) rotate(-5deg)}50%{transform:translateY(-6px) rotate(4deg)}}
+
+/* ---------------- Lobby ---------------- */
+.lobby{max-width:1080px;margin:0 auto;min-height:calc(100dvh - 28px);display:grid;grid-template-columns:1.1fr .9fr;gap:clamp(28px,6vw,96px);align-items:center;padding-block:20px}
+.pitch{display:flex;flex-direction:column;gap:22px;min-width:0;position:relative}
+.pitch .brand{gap:16px;align-items:center}
+.pitch .selo{width:clamp(78px,11vw,124px);animation:boia 3.4s ease-in-out infinite}
+.pitch .wordmark{font-size:clamp(44px,7vw,82px);--wm-stroke:2px}
+.pitch .s1{top:-8px;left:clamp(70px,10vw,118px);color:var(--sun)} .pitch .s2{top:52%;left:-12px;color:#7cc6ff;animation-delay:-1.2s;width:12px;height:12px}
+.lede{margin:0;color:var(--muted);font-size:17px;max-width:40ch;line-height:1.55;font-weight:600}
+.elenco{display:flex;padding-left:10px;flex-wrap:wrap;row-gap:8px}
+.elenco img{width:clamp(48px,7vw,64px);aspect-ratio:1;margin-left:-10px;border-radius:50%;border:var(--bw) solid var(--outline);box-shadow:0 3px 0 var(--outline);
+  background:var(--red);object-fit:cover;object-position:50% 12%;transition:transform .25s var(--pop);animation:pop-in .5s var(--pop) both;animation-delay:calc(var(--i) * 60ms)}
+.elenco img.b{background:var(--blue)} .elenco img.n{background:var(--civil)}
+.elenco img:hover{transform:translateY(-8px) rotate(-6deg) scale(1.08);position:relative;z-index:2}
+@keyframes pop-in{from{opacity:0;transform:scale(.4) translateY(10px)}}
+/* personagens dos jogadores */
+.av-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.av{position:relative;aspect-ratio:1;border-radius:50%;border:var(--bw) solid var(--outline);background:var(--panel-2);padding:0;overflow:hidden;
+  box-shadow:0 3px 0 var(--outline);transition:transform .25s var(--pop),background .2s;animation:pop-in .45s var(--pop) both;animation-delay:calc(var(--i) * 40ms)}
+.av img{width:100%;height:100%;object-fit:cover;object-position:50% 12%;display:block}
+@media (hover:hover){.av:not(:disabled):hover{transform:translateY(-4px) rotate(-4deg)}}
+.av[aria-checked=true]{background:var(--sun);outline:3px solid var(--sun);outline-offset:3px;transform:translateY(-3px) rotate(-4deg)}
+.av:disabled{opacity:.3;filter:grayscale(1);cursor:not-allowed}
+.btn-av{width:40px;height:40px;border-radius:50%;border:2.5px solid var(--outline);background:var(--sun);padding:0;overflow:hidden;box-shadow:0 3px 0 var(--outline);flex:none}
+.btn-av img{width:100%;height:100%;object-fit:cover;object-position:50% 12%;display:block}
+.btn-av:active{transform:translateY(3px);box-shadow:none}
+.mini-av{width:26px;height:26px;border-radius:50%;border:2px solid var(--outline);background:var(--panel-2);object-fit:cover;object-position:50% 12%;flex:none}
+.mini-av.none{display:grid;place-items:center;font:800 12px/1 var(--display);color:var(--muted)}
+.who-av{position:relative;flex:none;display:flex}
+.who-av .on-dot{position:absolute;right:-2px;bottom:-2px;width:10px;height:10px}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;counter-reset:s}
+.steps li{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;color:var(--muted);font-size:15px}
+.steps li::before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:28px;height:28px;border-radius:50%;
+  background:var(--paper);color:var(--print);border:2.5px solid var(--outline);font:800 14px/1 var(--display);box-shadow:0 2px 0 var(--outline)}
+.steps li b{color:var(--ink)}
+.entry{background:var(--panel);border:var(--bw) solid var(--outline);border-radius:20px;padding:26px;display:flex;flex-direction:column;gap:16px;box-shadow:0 7px 0 var(--outline)}
+.entry h2{font-size:26px}
+.field{display:flex;flex-direction:column;gap:7px}
+.help{font-size:13px;color:var(--faint);margin:0;font-weight:600}
+.join-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+#join-code{text-transform:uppercase;letter-spacing:.28em;font:800 18px var(--display)}
+.or{display:flex;align-items:center;gap:12px;color:var(--faint);font:800 12px var(--body);letter-spacing:.12em;text-transform:uppercase}
+.or::before,.or::after{content:"";flex:1;height:3px;border-radius:3px;background:var(--line)}
+#lobby-err{color:#ffad9f;font-size:14px;margin:0;min-height:1.4em}
+#lobby-err.info{color:var(--muted)}
+
+/* ---------------- Jogo ---------------- */
+#game{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.topbar .selo{width:42px}
+.topbar .wordmark{font-size:24px}
+.top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.code{font:800 16px/1 var(--display);letter-spacing:.2em;background:var(--paper);color:var(--print);border:2.5px solid var(--outline);border-radius:10px;padding:7px 8px 5px 12px;box-shadow:0 3px 0 var(--outline)}
+#banner{background:var(--sun);color:var(--print);border:var(--bw) solid var(--outline);border-radius:14px;padding:10px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;box-shadow:var(--drop);font-weight:800}
+
+.scorebar{display:none}
+.table{display:grid;grid-template-columns:240px minmax(0,1fr) 240px;gap:22px;align-items:start}
+.side{display:flex;flex-direction:column;gap:18px;min-width:0}
+
+.team{--tc:var(--red);--tdk:var(--red-dk);background:var(--panel);border:var(--bw) solid var(--outline);border-radius:18px;overflow:hidden;
+  box-shadow:0 5px 0 var(--outline);transition:transform .35s var(--pop),box-shadow .35s var(--pop)}
+.team.blue{--tc:var(--blue);--tdk:var(--blue-dk)}
+.team-top{background:var(--tc);border-bottom:var(--bw) solid var(--outline);padding:10px 14px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;color:#fff;
+  transition:filter .3s}
+.team:not(.turn) .team-top{filter:saturate(.55) brightness(.85)}
+.team.turn{transform:translateY(-5px);box-shadow:0 10px 0 var(--outline)}
+.team-name{font:800 22px/1 var(--display);text-shadow:0 2px 0 var(--outline)}
+.turn-tag{display:inline-block;margin-top:6px;font:800 11px var(--body);letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:8px;
+  background:rgba(20,12,19,.35)}
+.team.turn .turn-tag{background:var(--sun);color:var(--print);border:2px solid var(--outline);transform:rotate(-3deg);animation:wiggle 2.2s ease-in-out infinite}
+@keyframes wiggle{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+.count{font:800 50px/.8 var(--display);color:#fff;-webkit-text-stroke:3px var(--outline);paint-order:stroke fill;text-shadow:0 4px 0 var(--outline);font-variant-numeric:tabular-nums}
+.team-sec{padding:10px 14px 4px}
+.roster{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
+.roster li{display:flex;align-items:center;gap:8px;min-width:0;font-weight:700}
+.roster .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.roster .me{font:800 10px var(--body);text-transform:uppercase;letter-spacing:.06em;background:var(--paper);color:var(--print);border-radius:6px;padding:1px 6px;flex:none}
+.on-dot{width:10px;height:10px;border-radius:50%;background:var(--mint);border:2px solid var(--outline);flex:none}
+.on-dot.off{background:var(--faint)}
+.vacant{color:var(--faint);font-size:13.5px;margin-top:3px}
+.team-act{padding:10px 14px 14px}
+
+.center{display:flex;flex-direction:column;gap:16px;min-width:0}
+.status{display:flex;align-items:center;gap:10px;min-height:46px;background:var(--paper);color:var(--print);border:var(--bw) solid var(--outline);border-radius:16px;
+  padding:8px 10px 8px 8px;box-shadow:var(--drop);position:relative}
+.status .who{font:800 13px/1 var(--display);text-transform:uppercase;letter-spacing:.04em;color:#fff;background:var(--sc,var(--faint));border:2.5px solid var(--outline);
+  border-radius:10px;padding:6px 10px 4px;flex:none}
+.status.red{--sc:var(--red)} .status.blue{--sc:var(--blue)}
+#status-text{font-weight:800;font-size:16px;min-width:0}
+.timer{margin-left:auto;font:800 17px/1 var(--display);font-variant-numeric:tabular-nums;background:var(--print);color:var(--paper);border-radius:10px;padding:6px 10px 4px;flex:none}
+.timer.low{background:var(--red);color:#fff;animation:wiggle .5s ease-in-out infinite}
+
+.board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:clamp(7px,1.1vw,14px);perspective:900px}
+.card{--r:0deg;position:relative;aspect-ratio:1.45;border-radius:14px;background:var(--paper);color:var(--print);border:var(--bw) solid var(--outline);
+  display:grid;place-items:center;padding:7%;transform:rotate(var(--r));box-shadow:0 4px 0 var(--outline),inset 0 -6px 0 var(--paper-2);
+  user-select:none;touch-action:manipulation;transition:transform .25s var(--pop),box-shadow .2s,background .3s}
+.card.has-art{grid-template-rows:minmax(0,1fr) auto;gap:3%}
+.art{min-height:0;height:100%;width:100%;display:flex;align-items:center;justify-content:center}
+.art img{max-width:100%;max-height:100%;object-fit:contain}
+/* a letra encolhe conforme a largura da carta e o tamanho da palavra (--len), para não quebrar no meio */
+.card{container-type:inline-size}
+.word{font:800 clamp(7px,calc(100cqi * 1.7 / var(--len,6)),19px)/1 var(--display);text-transform:uppercase;letter-spacing:-.01em;text-align:center;
+  overflow-wrap:anywhere;padding-top:.12em;max-width:100%}
+.card.mine{align-items:start;padding-top:12%}
+.card.clickable{cursor:pointer}
+@media (hover:hover){.card.clickable:hover{transform:rotate(calc(var(--r) * -1)) translateY(-5px);box-shadow:0 9px 0 var(--outline),inset 0 -6px 0 var(--paper-2)}}
+.card.clickable:active{transform:rotate(var(--r)) translateY(3px);box-shadow:0 1px 0 var(--outline),inset 0 -6px 0 var(--paper-2)}
+/* visão do mestre: faixa colorida embaixo e fundo tingido */
+.card.hint.red{background:var(--red-tint);box-shadow:0 4px 0 var(--outline),inset 0 -9px 0 var(--red)}
+.card.hint.blue{background:var(--blue-tint);box-shadow:0 4px 0 var(--outline),inset 0 -9px 0 var(--blue)}
+.card.hint.n{background:#f0e2c4;box-shadow:0 4px 0 var(--outline),inset 0 -9px 0 var(--civil)}
+.card.hint.a{background:#4a3846;color:var(--paper);box-shadow:0 4px 0 var(--outline),inset 0 -9px 0 var(--outline)}
+/* reveladas: personagem na cor do time */
+.card.rev{grid-template-rows:minmax(0,1fr) auto;gap:2%;padding:5% 5% 7%;color:var(--print)}
+.card.rev.red{background:var(--red);box-shadow:0 4px 0 var(--outline),inset 0 -6px 0 var(--red-dk)}
+.card.rev.blue{background:var(--blue);box-shadow:0 4px 0 var(--outline),inset 0 -6px 0 var(--blue-dk)}
+.card.rev.n{background:var(--civil);box-shadow:0 4px 0 var(--outline),inset 0 -6px 0 #c3ae7e}
+.card.rev.a{background:var(--assassin);box-shadow:0 4px 0 var(--outline),inset 0 -6px 0 #120a10}
+.card.rev .word{font-size:clamp(8px,.78vw,12px);background:var(--paper);border:2px solid var(--outline);border-radius:7px;padding:3px 6px 1px;max-width:100%;position:relative;z-index:1}
+.card.rev .art img{filter:drop-shadow(0 3px 0 rgba(20,12,19,.45))}
+/* retrato de busto: ocupa a carta inteira, preso embaixo, com a etiqueta por cima */
+.card.rev.portrait{overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:0 5% 7%}
+.card.rev.portrait .art{position:absolute;inset:0;height:auto;align-items:flex-end}
+.card.rev.portrait .art img{width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;object-position:50% 18%;filter:none}
+.stamp{font:800 clamp(11px,1.3vw,19px)/1 var(--display);text-transform:uppercase;color:#fff;-webkit-text-stroke:2px var(--outline);paint-order:stroke fill;transform:rotate(-6deg)}
+.card.rev.a .stamp{color:#ff8f7a}
+.card.deal{animation:deal .55s var(--pop) both;animation-delay:calc(var(--i) * 24ms)}
+@keyframes deal{from{opacity:0;transform:translateY(-22px) rotate(calc(var(--r,0deg) - 10deg)) scale(.85)}}
+.card.flip{animation:flip .6s var(--pop)}
+@keyframes flip{0%{transform:rotate(var(--r)) rotateY(0)}45%{transform:rotate(var(--r)) rotateY(90deg) scale(1.05)}100%{transform:rotate(var(--r)) rotateY(0)}}
+.card.marked{outline:3px dashed var(--sun);outline-offset:4px}
+.marks{position:absolute;top:-11px;left:4%;right:4%;display:flex;gap:3px;flex-wrap:wrap;z-index:2;pointer-events:none}
+.marks span{font:800 10.5px/15px var(--body);background:var(--sun);color:var(--print);border:2px solid var(--outline);border-radius:7px;padding:0 5px;max-width:74px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;animation:pop-in .3s var(--pop)}
+.reveal-btn{position:absolute;left:9%;right:9%;bottom:10%;z-index:3;border:2.5px solid var(--outline);border-radius:10px;padding:5px 4px 3px;
+  font:800 13px/1.1 var(--display);text-transform:uppercase;letter-spacing:.04em;background:var(--sun);color:var(--print);box-shadow:0 3px 0 var(--outline);animation:pop-in .3s var(--pop)}
+.reveal-btn:active{transform:translateY(3px);box-shadow:none}
+
+.cluebar{background:var(--panel);border:var(--bw) solid var(--outline);border-radius:18px;padding:12px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;
+  min-height:68px;box-shadow:0 5px 0 var(--outline)}
+#clue-form{display:grid;grid-template-columns:minmax(0,320px) 78px auto;gap:8px;justify-content:center;width:100%}
+#clue-word{text-transform:uppercase;font:800 18px var(--display);letter-spacing:.03em;padding-block:8px 6px}
+.clue{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center}
+.clue b{font:800 32px/1.05 var(--display);text-transform:uppercase;background:var(--paper);color:var(--print);border:var(--bw) solid var(--outline);border-radius:12px;
+  padding:6px 16px 2px;box-shadow:0 4px 0 var(--outline);transform:rotate(-2deg);animation:pop-in .4s var(--pop)}
+.clue .n{display:grid;place-items:center;min-width:48px;height:48px;border-radius:50%;font:800 26px/1 var(--display);color:#fff;background:var(--cc);
+  border:var(--bw) solid var(--outline);box-shadow:0 4px 0 var(--outline);padding-top:3px}
+.clue .left{color:var(--muted);font-weight:800;font-size:13px}
+#clue-wait{color:var(--muted);text-align:center;font-weight:700}
+
+.logbox{background:var(--panel);border:var(--bw) solid var(--outline);border-radius:18px;padding:12px 14px;min-width:0;box-shadow:0 5px 0 var(--outline)}
+.logbox summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.logbox summary::-webkit-details-marker{display:none}
+.log-n{font:800 12px/1 var(--display);background:var(--panel-2);border-radius:8px;padding:4px 8px 2px;color:var(--muted)}
+.logbox ol{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:13.5px;max-height:360px;overflow:auto}
+.logbox li{display:grid;grid-template-columns:10px 1fr;gap:8px;align-items:baseline;color:var(--muted);font-weight:600}
+.logbox li::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--faint);border:2px solid var(--outline);transform:translateY(1px)}
+.logbox li.red::before{background:var(--red)} .logbox li.blue::before{background:var(--blue)}
+.logbox li:first-child{color:var(--ink)}
+
+/* ---------------- Painéis ---------------- */
+.overlay{position:fixed;inset:0;background:rgba(20,12,19,.72);z-index:30;display:flex;align-items:center;justify-content:center;animation:fade .2s;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+@keyframes fade{from{opacity:0}}
+.sheet{background:var(--panel);border:var(--bw) solid var(--outline);border-radius:22px;width:min(680px,100%);max-height:100%;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 8px 0 var(--outline);animation:sheet-in .4s var(--pop)}
+@keyframes sheet-in{from{opacity:0;transform:translateY(24px) scale(.96)}}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 18px 12px;background:var(--sun);color:var(--print);border-bottom:var(--bw) solid var(--outline)}
+.sheet-head h2{font-size:22px}
+.tabs{display:flex;gap:6px;padding:12px 18px 0;overflow-x:auto}
+.tabs button{background:var(--panel-2);border:2.5px solid var(--outline);border-radius:10px;padding:5px 12px 4px;font:800 14px var(--body);color:var(--muted);white-space:nowrap;box-shadow:0 3px 0 var(--outline)}
+.tabs button[aria-selected=true]{background:var(--paper);color:var(--print);transform:translateY(2px);box-shadow:0 1px 0 var(--outline)}
+.sheet-body{padding:16px 18px 20px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.sheet-body h3{font-size:17px}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:8px;align-items:center;padding:10px 12px;background:var(--panel-2);border-radius:12px}
+.prow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800;display:flex;align-items:center;gap:8px}
+.prow select{padding:5px 8px;font-size:14px;border-width:2.5px;border-radius:10px}
+.plist{display:flex;flex-direction:column;gap:6px}
+.packs{display:flex;flex-direction:column;gap:6px}
+.pack{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--panel-2);border-radius:12px;cursor:pointer;border:2.5px solid transparent;transition:border-color .15s}
+.pack:has(input:checked){border-color:var(--sun)}
+.pack input{width:22px;height:22px;accent-color:var(--sun);flex:none}
+.pack .info{flex:1;min-width:0}
+.pack .info b{display:block;font-weight:800}
+.pack .info span{font-size:13px;color:var(--muted)}
+.pack .cnt{font:800 14px/1 var(--display);background:var(--paper);color:var(--print);border:2px solid var(--outline);border-radius:8px;padding:4px 7px 2px}
+.editor{background:var(--panel-2);border:2.5px dashed var(--sun);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.note{font-size:13.5px;color:var(--muted);margin:0;font-weight:600}
+.warn{font-size:13.5px;color:#ffad9f;margin:0;font-weight:800}
+.sheet-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-top:6px}
+pre{background:var(--paper);color:var(--print);border:2.5px solid var(--outline);border-radius:12px;padding:12px;overflow-x:auto;font:600 12.5px/1.5 ui-monospace,Consolas,monospace;margin:0}
+.switch{display:flex;align-items:center;gap:10px;font-weight:800}
+.switch input{width:22px;height:22px;accent-color:var(--sun)}
+.confirm-box{background:var(--panel);border:var(--bw) solid var(--outline);border-radius:20px;padding:20px;width:min(380px,100%);display:flex;flex-direction:column;gap:16px;
+  box-shadow:0 7px 0 var(--outline);animation:sheet-in .35s var(--pop)}
+.confirm-box p{margin:0;font:800 19px/1.25 var(--display)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+#toast{position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--paper);color:var(--print);border:var(--bw) solid var(--outline);
+  padding:9px 16px;border-radius:14px;font-weight:800;z-index:40;max-width:calc(100% - 32px);text-align:center;box-shadow:var(--drop);animation:toast-in .35s var(--pop)}
+@keyframes toast-in{from{opacity:0;transform:translate(-50%,16px) scale(.9)}}
+
+/* ---------------- Celular ---------------- */
+@media (max-width:860px){
+  body{padding-block:10px}
+  .lobby{grid-template-columns:1fr;align-items:start;gap:26px;min-height:0}
+  .scorebar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
+  .score{font:800 26px/1 var(--display);padding:6px 14px 3px;color:#fff;border:var(--bw) solid var(--outline);border-radius:12px;box-shadow:0 3px 0 var(--outline);
+    font-variant-numeric:tabular-nums;-webkit-text-stroke:2px var(--outline);paint-order:stroke fill;filter:saturate(.5) brightness(.8);transition:filter .3s,transform .3s var(--pop)}
+  .score.red{background:var(--red)} .score.blue{background:var(--blue)}
+  .score.on{filter:none;transform:translateY(-3px) rotate(-3deg)}
+  .scorebar .mid{text-align:center;font:800 12px var(--body);letter-spacing:.04em;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .table{grid-template-columns:1fr 1fr;gap:12px}
+  .center{grid-column:1/-1;order:-1}
+  .side{display:contents}
+  .logbox{grid-column:1/-1}
+  .team-name{font-size:19px} .count{font-size:38px}
+  .cluebar{position:sticky;bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:10}
+  .topbar .wordmark{font-size:20px} .topbar .selo{width:36px}
+  .status .who{display:none}
+}
+@media (max-width:560px){
+  .board{gap:6px}
+  .card{aspect-ratio:1.05;border-radius:10px;border-width:2.5px;padding:5% 3%;box-shadow:0 3px 0 var(--outline),inset 0 -4px 0 var(--paper-2)}
+  .card.hint.red,.card.hint.blue,.card.hint.n,.card.hint.a{box-shadow:0 3px 0 var(--outline),inset 0 -6px 0 var(--sc-mini,transparent)}
+  .card.hint.red{--sc-mini:var(--red)} .card.hint.blue{--sc-mini:var(--blue)} .card.hint.n{--sc-mini:var(--civil)} .card.hint.a{--sc-mini:var(--outline)}
+  .card.rev .word{font-size:7.5px;padding:2px 3px 0;border-width:1.5px;border-radius:5px}
+  .stamp{font-size:10px;-webkit-text-stroke:1.5px var(--outline)}
+  .marks{top:-9px} .marks span{font-size:9px;line-height:12px;max-width:46px;padding:0 3px;border-width:1.5px}
+  .reveal-btn{font-size:10px;padding:4px 2px 2px;border-width:2px}
+  .clue b{font-size:24px} .clue .n{min-width:40px;height:40px;font-size:21px}
+  #clue-form{grid-template-columns:minmax(0,1fr) 66px}
+  #clue-form .btn{grid-column:1/-1}
+  .prow{grid-template-columns:minmax(0,1fr) auto auto}
+  .prow .kick{grid-column:1/-1;justify-self:start}
+  .top-actions .hide-sm{display:none}
+  .entry{padding:20px}
+  .av-grid{gap:7px}
+  .team-top{padding:8px 10px 10px} .team-sec{padding:8px 10px 2px} .team-act{padding:8px 10px 12px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="spark" viewBox="0 0 20 20"><path d="M10 0 Q11.6 8.4 20 10 Q11.6 11.6 10 20 Q8.4 11.6 0 10 Q8.4 8.4 10 0 Z" fill="currentColor"/></symbol>
+</svg>
+
+<!-- ================= LOBBY ================= -->
+<main id="lobby" class="lobby">
+  <section class="pitch">
+    <svg class="spark s1" aria-hidden="true"><use href="#spark"/></svg>
+    <svg class="spark s2" aria-hidden="true"><use href="#spark"/></svg>
+    <div class="brand">
+      <img class="selo" src="icones/cartas/logo-selo.svg" alt="">
+      <div class="wordmark">Operação<br><em>Clubber</em></div>
+    </div>
+    <p class="lede">Dois times disputam 25 palavras. O mestre de cada time sabe quem é quem e dá uma dica por vez. Os agentes tentam adivinhar sem esbarrar no assassino.</p>
+    <ol class="steps">
+      <li><span>Entre, escolha seu <b>personagem</b> e depois o time. A cada partida os times são sorteados de novo.</span></li>
+      <li><span>O <b>mestre</b> dá uma dica com uma palavra e um número.</span></li>
+      <li><span>Os <b>agentes</b> chutam até número + 1 cartas. Errou, a vez passa.</span></li>
+      <li><span>Achou todos os seus agentes, venceu. Tocou no <b>assassino</b>, perdeu na hora.</span></li>
+    </ol>
+  </section>
+
+  <section class="entry" aria-labelledby="entry-title">
+    <h2 id="entry-title">Bora jogar</h2>
+    <div class="field">
+      <label class="label" for="name">Seu nome</label>
+      <input type="text" id="name" maxlength="20" placeholder="Como a galera te chama" autocomplete="nickname">
+    </div>
+    <div class="field" id="av-field" hidden>
+      <span class="label" id="av-label">Seu personagem</span>
+      <div class="av-grid" id="lobby-avs" role="radiogroup" aria-labelledby="av-label"></div>
+      <p class="help" id="av-help">Toque em quem você vai ser na mesa.</p>
+    </div>
+    <button class="btn primary" id="create">Criar sala nova</button>
+    <button class="btn" id="resume" hidden></button>
+    <div class="or">ou</div>
+    <div class="field">
+      <label class="label" for="join-code">Código da sala</label>
+      <div class="join-row">
+        <input type="text" id="join-code" maxlength="5" placeholder="XXXXX" autocapitalize="characters">
+        <button class="btn" id="join">Entrar</button>
+      </div>
+      <p class="help">Quem criou a sala vê o código no topo da tela.</p>
+    </div>
+    <p id="lobby-err" role="alert"></p>
+  </section>
+</main>
+
+<!-- ================= JOGO ================= -->
+<div id="game" hidden>
+  <header class="topbar">
+    <div class="brand"><img class="selo" src="icones/cartas/logo-selo.svg" alt=""><div class="wordmark">Operação <em>Clubber</em></div></div>
+    <div class="top-actions">
+      <span class="label hide-sm">Sala</span>
+      <button class="btn-av" id="my-av" hidden title="Trocar personagem" aria-label="Trocar personagem"><img alt=""></button>
+      <span class="code" id="room-code">-----</span>
+      <button class="btn small" id="copy-link">Convidar</button>
+      <button class="btn small primary" id="open-admin" hidden>Painel</button>
+      <button class="btn small" id="leave">Sair</button>
+    </div>
+  </header>
+  <div id="banner" hidden><span id="banner-text"></span><button class="btn small" id="reconnect">Tentar de novo</button></div>
+
+  <div class="scorebar" aria-hidden="true">
+    <span class="score red" id="score-red">9</span>
+    <span class="mid" id="score-mid"></span>
+    <span class="score blue" id="score-blue">8</span>
+  </div>
+
+  <div class="table">
+    <div class="side"><section class="team red" id="team-red" aria-label="Time Vermelho"></section></div>
+
+    <section class="center">
+      <div class="status" id="status"><span class="who" id="status-who"></span><span id="status-text"></span><span class="timer" id="timer" hidden></span></div>
+      <div class="board" id="board" role="grid" aria-label="Tabuleiro"></div>
+      <div class="cluebar" id="cluebar">
+        <form id="clue-form" hidden>
+          <input type="text" id="clue-word" maxlength="24" placeholder="Sua dica" autocomplete="off" autocapitalize="characters" aria-label="Palavra da dica">
+          <select id="clue-n" aria-label="Número da dica">
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+            <option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option>
+            <option value="9">9</option><option value="0">0</option><option value="inf">∞</option>
+          </select>
+          <button class="btn primary" type="submit">Dar dica</button>
+        </form>
+        <div class="clue" id="clue-show" hidden></div>
+        <button class="btn" id="pass" hidden>Encerrar palpites</button>
+        <button class="btn primary" id="over-new" hidden>Novo jogo</button>
+        <span id="clue-wait" hidden></span>
+      </div>
+    </section>
+
+    <div class="side">
+      <section class="team blue" id="team-blue" aria-label="Time Azul"></section>
+      <details class="logbox" id="logbox" open>
+        <summary><span class="label">Histórico</span><span class="log-n" id="log-count"></span></summary>
+        <ol id="log"></ol>
+      </details>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PAINEL DO ANFITRIÃO ================= -->
+<div class="overlay" id="admin" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+    <div class="sheet-head"><h2 id="admin-title">Painel do anfitrião</h2><button class="btn small" id="admin-close">Fechar</button></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="players" aria-selected="true">Jogadores</button>
+      <button role="tab" data-tab="words" aria-selected="false">Palavras</button>
+      <button role="tab" data-tab="rules" aria-selected="false">Partida</button>
+      <button role="tab" data-tab="icons" aria-selected="false">Ícones</button>
+    </nav>
+    <div class="sheet-body" id="admin-body"></div>
+  </div>
+</div>
+
+<div class="overlay" id="confirm" hidden>
+  <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-text">
+    <p id="confirm-text"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" id="confirm-no">Cancelar</button>
+      <button class="btn primary" id="confirm-yes">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="avpick" hidden>
+  <div class="confirm-box" role="dialog" aria-modal="true" aria-labelledby="avpick-title" style="width:min(480px,100%)">
+    <p id="avpick-title">Escolha seu personagem</p>
+    <div class="av-grid" id="game-avs" role="radiogroup" aria-labelledby="avpick-title"></div>
+    <p class="help" id="avpick-help">Os apagados já estão com outra pessoa da sala.</p>
+    <div class="row" style="justify-content:flex-end"><button class="btn" id="avpick-close">Fechar</button></div>
+  </div>
+</div>
+
+<div id="toast" hidden role="status"></div>
+
+<script>
+/* ===================================================================
+   PACOTES DE PALAVRAS (o anfitrião escolhe quais usar no Painel)
+   =================================================================== */
+const PACKS = {
+  geral: { name: 'Geral', desc: 'Objetos, lugares, pessoas e ideias', words: `
+AGULHA ACADEMIA ÁGUA ALMA ALVO AMOR ANEL ANJO ANTENA APITO AQUÁRIO ÁRBITRO ARCO AREIA ARMA ÁRVORE ASA ASTRONAUTA ATLETA AVIÃO
+BALA BALÃO BANCO BANDEIRA BANHO BARCO BARRIL BATERIA BEBÊ BEIJO BICICLETA BIGODE BOLA BOLSA BOMBA BONECA BOTA BOTÃO BRAÇO BRUXA
+BURACO CABO CADEIRA CAIXA CALÇA CAMA CAMINHÃO CAMPO CANETA CANO CAPA CARRO CARTA CASA CASTELO CÉREBRO CHAVE CHAPÉU CHEFE CHUVA
+CIDADE CINEMA CINTO CIRCO CLUBE CÓDIGO COFRE COLA COLHER COMETA COPO CORAÇÃO CORDA COROA CORREIO CORRENTE COZINHA CRUZ CUBO
+DADO DENTE DESERTO DIAMANTE DINOSSAURO DISCO DRAGÃO DUENDE ELEVADOR ENFERMEIRA ESCADA ESCOLA ESPADA ESPELHO ESPINHO ESPIÃO ESPONJA
+ESQUELETO ESTÁDIO ESTRELA FACA FADA FANTASMA FAROL FAZENDA FERRO FESTA FIO FITA FLAUTA FLECHA FLOR FOGO FOGUETE FOLHA FONTE FORNO
+FOTO FUTEBOL GARFO GARRAFA GELO GÊNIO GIGANTE GOTA GRAMA GUARDA GUITARRA HELICÓPTERO HERÓI HOSPITAL HOTEL IGREJA ILHA ÍMÃ INVERNO
+JANELA JARDIM JOGO JOIA JORNAL JUIZ LADRÃO LAGO LÂMPADA LANTERNA LÁPIS LASER LINHA LIVRO LUA LUVA MÁGICO MALA MÃO MAPA MAR MARTELO
+MÁSCARA MEDALHA MÉDICO MESA METRÔ MICROFONE MINA MOEDA MOCHILA MONSTRO MONTANHA MOTO MÚMIA MÚSICA NAVE NAVIO NEVE NINJA NÓ NOTA
+NUVEM OCEANO ÓCULOS OLHO ONDA ÔNIBUS OURO PADRE PALÁCIO PALHAÇO PANELA PAPEL PARQUE PASSAPORTE PEDRA PENA PERFUME PIANO PILOTO
+PIPA PIRÂMIDE PIRATA PISCINA PLANETA PLANTA POLÍCIA PONTE PORTA PRAIA PRATO PRAÇA PRÉDIO PRÍNCIPE PRISÃO PROFESSOR RADAR RAIO
+RAINHA REDE REI RELÓGIO REMÉDIO RIO ROBÔ RODA ROSA SABÃO SAPATO SATÉLITE SEREIA SINO SOFÁ SOL SOLDADO SOMBRA SONHO SUBMARINO TAMBOR
+TANQUE TAPETE TÁXI TEATRO TECLADO TELEFONE TELESCÓPIO TEMPLO TENDA TERRA TESOURA TESOURO TIJOLO TINTA TORRE TREM TROMPETE TRONO
+UNICÓRNIO VAMPIRO VASSOURA VELA VENTO VIDRO VIOLÃO VULCÃO XADREZ ZUMBI GALÁXIA ÁTOMO VÍRUS VACINA SENHA INTERNET CELULAR
+COMPUTADOR VIDEOGAME CONTROLE MEME FILTRO CABELO NARIZ ORELHA JOELHO PULMÃO SANGUE OSSO UNHA PESCOÇO TEMPO SORTE GUERRA PAZ
+VERDADE MENTIRA SEGREDO FAMA SILÊNCIO GRITO PERIGO MEDO AGENDA ALMOFADA ARMÁRIO BALANÇA BANHEIRA BERÇO BINÓCULO BÚSSOLA CADEADO
+CALENDÁRIO CÂMERA CAMPAINHA CANECA CARIMBO CARTEIRA CHUVEIRO CORTINA ESCOVA FIGURINHA FÓSFORO FRALDA GAVETA GELADEIRA GUARDA-CHUVA
+ISQUEIRO JAQUETA LENÇOL LIXO MOLA PARAQUEDAS PENEIRA PINCEL PIÃO PULSEIRA RAQUETE SACOLA SERROTE SINAL TAMPA TRAVESSEIRO TROFÉU
+VARAL VENTILADOR XÍCARA VIZINHO VOVÓ PATRÃO` },
+  brasil: { name: 'Brasil', desc: 'Cultura, festas e o dia a dia brasileiro', words: `
+SAMBA PAGODE CARNAVAL AMAZÔNIA PANTANAL SERTÃO NOVELA SACI CURUPIRA IARA CAPOEIRA BERIMBAU FORRÓ FREVO RODOVIÁRIA CARTÓRIO PADARIA
+BOTECO RESSACA FÉRIAS BOLETO FEIRA CHURRASCO MARACANÃ COPACABANA CANGAÇO JANGADA CHIMARRÃO FUSCA ORELHÃO MALANDRO BAILE FUNK
+SERTANEJO BOSSA VIOLA CAVAQUINHO PANDEIRO QUADRILHA FOGUEIRA QUENTÃO BAIANA JEITINHO SAUDADE CAFUNÉ GAMBIARRA CHINELO VIRA-LATA
+MUTIRÃO FAROFEIRO ARRAIÁ MOQUECA PELADA TORCIDA URUBU CAMELÔ FILA FIADO BLOCO TRIO ABADÁ CORDEL REPENTE EMBOLADA BUMBA-MEU-BOI
+CIRANDA MARACATU JUNINA ROÇA CAIPIRA` },
+  bichos: { name: 'Bichos', desc: 'Animais do mundo todo', words: `
+ABELHA ÁGUIA ARANHA BALEIA BORBOLETA CABRA CACHORRO CAMELO CANGURU CAVALO COBRA ELEFANTE FORMIGA GALO GATO GIRAFA GOLFINHO GORILA
+JACARÉ LEÃO LOBO MACACO MORCEGO PATO PEIXE PINGUIM PORCO RATO SAPO TARTARUGA TIGRE TOURO TUBARÃO URSO VACA ZEBRA TUCANO ARARA ONÇA
+CAPIVARA BOTO MICO PREGUIÇA SABIÁ BEIJA-FLOR CORUJA POLVO LAGOSTA CARANGUEJO CAMARÃO PULGA MOSQUITO MINHOCA ESCORPIÃO CORVO POMBO
+PAVÃO FLAMINGO HIPOPÓTAMO RINOCERONTE CAMALEÃO TAMANDUÁ TATU LHAMA COELHO ESQUILO RAPOSA CERVO GALINHA OVELHA BARATA LAGARTIXA
+CAVALO-MARINHO ÁGUA-VIVA ESTRELA-DO-MAR PANDA COALA` },
+  comida: { name: 'Comida', desc: 'Pratos, frutas e bebidas', words: `
+ABACAXI AÇÚCAR ALFACE ARROZ AZEITE BANANA BOLO CAFÉ CEBOLA CENOURA CHÁ CHICLETE CHOCOLATE COCO DOCE FEIJÃO FRANGO LARANJA LEITE
+LIMÃO MAÇÃ MANGA MEL MILHO OVO PÃO PIMENTA PIZZA QUEIJO SORVETE TOMATE UVA CAIPIRINHA BRIGADEIRO COXINHA PASTEL PICANHA FAROFA AÇAÍ
+CUSCUZ TAPIOCA CAJU GOIABA MARACUJÁ JABUTICABA PAMONHA ACARAJÉ FEIJOADA PUDIM PIPOCA MACARRÃO LASANHA HAMBÚRGUER SALSICHA BACON
+MORANGO MELANCIA ABACATE BATATA ALHO MANTEIGA IOGURTE SUCO REFRIGERANTE CERVEJA VINHO SANDUÍCHE SOPA SALADA OMELETE PANQUECA
+ESFIHA KIBE MANDIOCA` }
+};
+for (const p of Object.values(PACKS)) p.words = [...new Set(p.words.split(/\s+/).filter(Boolean))];
+
+/* ===================================================================
+   Utilidades
+   =================================================================== */
+const PREFIX = 'operacao-palavra-v2-';
+const TEAM = { red: 'Time Vermelho', blue: 'Time Azul' };
+const TEAM_SHORT = { red: 'Vermelho', blue: 'Azul' };
+const $ = s => document.querySelector(s);
+const other = t => t === 'red' ? 'blue' : 'red';
+const norm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const hash = s => { let x = 2166136261; for (const ch of String(s)) { x ^= ch.charCodeAt(0); x = Math.imul(x, 16777619); } return x >>> 0; };
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, '');
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) { if (c == null || c === false) continue; el.append(c instanceof Node ? c : document.createTextNode(String(c))); }
+  return el;
+}
+const store = {
+  get(s, k) { try { return s.getItem(k); } catch { return null; } },
+  set(s, k, v) { try { s.setItem(k, v); } catch {} },
+  del(s, k) { try { s.removeItem(k); } catch {} }
+};
+const rid = (n = 12) => { const c = 'abcdefghijklmnopqrstuvwxyz0123456789'; let r = ''; for (let i = 0; i < n; i++) r += c[Math.floor(Math.random() * c.length)]; return r; };
+const genCode = () => { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r = ''; for (let i = 0; i < 5; i++) r += c[Math.floor(Math.random() * c.length)]; return r; };
+let toastTimer;
+function toast(msg) { const t = $('#toast'); t.hidden = true; void t.offsetWidth; t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 3200); }
+let confirmCb = null;
+function askConfirm(text, yes, cb) { $('#confirm-text').textContent = text; $('#confirm-yes').textContent = yes; confirmCb = cb; $('#confirm').hidden = false; $('#confirm-yes').focus(); }
+$('#confirm-no').onclick = () => { $('#confirm').hidden = true; confirmCb = null; };
+$('#confirm-yes').onclick = () => { $('#confirm').hidden = true; const cb = confirmCb; confirmCb = null; cb && cb(); };
+function parseWords(text) {
+  const seen = new Set(), out = [];
+  for (let w of String(text).split(/[\n,;]+/)) {
+    w = w.trim().replace(/\s+/g, ' ').toUpperCase().slice(0, 20);
+    if (!w) continue; const k = norm(w); if (seen.has(k)) continue; seen.add(k); out.push(w);
+  }
+  return out;
+}
+
+/* ===================================================================
+   Ícones (pasta icones/ — veja icones/LEIA-ME.txt)
+   =================================================================== */
+let ICONS = { avatares: {}, cartas: {}, palavras: {} }, iconsLoaded = false;
+fetch('icones/icones.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).then(m => {
+  if (!m) return;
+  ICONS.avatares = m.avatares || {};
+  ICONS.cartas = m.cartas || {};
+  ICONS.palavras = {};
+  for (const [k, v] of Object.entries(m.palavras || {})) ICONS.palavras[norm(k)] = v;
+  iconsLoaded = true; renderLobbyAvatars(); render(); renderAdmin();
+}).catch(() => {});
+const CARD_ICON_KEY = { red: 'vermelho', blue: 'azul', n: 'civil', a: 'assassino' };
+const STAMP = { red: 'Agente', blue: 'Agente', n: 'Civil', a: 'Assassino' };
+const hasAvatars = () => Object.keys(ICONS.avatares).length > 0;
+const avatarSrc = key => key && ICONS.avatares[key] ? 'icones/' + ICONS.avatares[key] : null;
+const avatarName = key => ({ chapeu: 'Chapéu', oculos: 'Óculos', 'camisa-azul': 'Camisa azul' }[key] || String(key).replace(/-/g, ' ').replace(/^./, c => c.toUpperCase()));
+
+/* Arte da carta revelada. Agente vermelho/azul: o personagem de alguém que está no time nesta partida
+   (sorteado pela palavra; muda se os times mudarem). Civil e assassino: arte da pasta cartas/, ou o carimbo. */
+function cardArtFile(k, seed, S) {
+  if ((k === 'red' || k === 'blue') && S) {
+    const faces = Object.values(S.players).filter(p => p.team === k && avatarSrc(p.avatar)).map(p => avatarSrc(p.avatar)).sort();
+    if (faces.length) return { src: faces[hash(seed) % faces.length], portrait: true };
+  }
+  let file = ICONS.cartas[CARD_ICON_KEY[k]];
+  if (Array.isArray(file)) file = file.length ? file[hash(seed) % file.length] : null;
+  return file ? { src: 'icones/' + file, portrait: false } : null;
+}
+function revealedArt(art, k) {
+  if (art) return h('div', { class: 'art' }, h('img', { src: art.src, alt: '' }));
+  return h('div', { class: 'art' }, h('span', { class: 'stamp' }, STAMP[k]));
+}
+
+/* Grade de personagens: usada na entrada e no jogo */
+function renderAvGrid(box, selected, taken, onPick) {
+  box.replaceChildren(...Object.keys(ICONS.avatares).map((key, i) => {
+    const busy = taken.has(key) && key !== selected;
+    return h('button', { class: 'av', type: 'button', role: 'radio', 'aria-checked': String(key === selected), disabled: busy,
+      title: avatarName(key) + (busy ? ' (já escolhido)' : ''), 'aria-label': avatarName(key) + (busy ? ', já escolhido' : ''), style: `--i:${i}`,
+      onclick: () => onPick(key) }, h('img', { src: avatarSrc(key), alt: '' }));
+  }));
+}
+let myAvatar = store.get(localStorage, 'op-avatar') || null;
+function renderLobbyAvatars() {
+  if (!hasAvatars()) { $('#av-field').hidden = true; return; }
+  if (myAvatar && !ICONS.avatares[myAvatar]) myAvatar = null;
+  $('#av-field').hidden = false;
+  renderAvGrid($('#lobby-avs'), myAvatar, new Set(), key => {
+    myAvatar = key; store.set(localStorage, 'op-avatar', key);
+    $('#av-help').textContent = `Você vai jogar como ${avatarName(key)}.`; renderLobbyAvatars();
+  });
+  if (myAvatar) $('#av-help').textContent = `Você vai jogar como ${avatarName(myAvatar)}.`;
+}
+function openAvatarPicker() {
+  if (!view || !hasAvatars()) return;
+  const taken = new Set(Object.entries(view.players).filter(([id]) => id !== view.you).map(([, p]) => p.avatar).filter(Boolean));
+  const mine = (view.players[view.you] || {}).avatar;
+  renderAvGrid($('#game-avs'), mine, taken, key => {
+    myAvatar = key; store.set(localStorage, 'op-avatar', key);
+    send({ t: 'avatar', avatar: key }); $('#avpick').hidden = true;
+  });
+  $('#avpick').hidden = false;
+}
+$('#avpick-close').onclick = () => { $('#avpick').hidden = true; };
+$('#avpick').addEventListener('click', e => { if (e.target.id === 'avpick') $('#avpick').hidden = true; });
+$('#my-av').onclick = openAvatarPicker;
+
+/* ===================================================================
+   Identidade e estado local
+   =================================================================== */
+let myPid = store.get(sessionStorage, 'op-pid');
+if (!myPid) { myPid = 'p' + rid(); store.set(sessionStorage, 'op-pid', myPid); }
+let myName = store.get(localStorage, 'op-name') || '';
+$('#name').value = myName;
+const hashCode = (location.hash || '').replace('#', '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+if (hashCode) { $('#join-code').value = hashCode; $('#join').classList.add('primary'); $('#create').classList.remove('primary'); }
+
+let isHost = false, peer = null, conn = null, roomCode = null, view = null, inGame = false, kicked = false;
+let G = null;                 // estado completo (só o anfitrião)
+const conns = new Map();      // pid -> conexão (anfitrião)
+const banned = new Set();
+let lastWords = [];
+
+/* Listas personalizadas do anfitrião (ficam salvas neste navegador) */
+function getLists() { try { return JSON.parse(store.get(localStorage, 'op-lists') || '[]'); } catch { return []; } }
+function setLists(l) { store.set(localStorage, 'op-lists', JSON.stringify(l)); }
+
+function poolFor(packs) {
+  const lists = getLists(), seen = new Set(), out = [];
+  for (const id of packs) {
+    const words = PACKS[id] ? PACKS[id].words : (lists.find(l => 'c:' + l.id === id) || {}).words || [];
+    for (const w of words) { const k = norm(w); if (!seen.has(k)) { seen.add(k); out.push(w); } }
+  }
+  return out;
+}
+
+/* ===================================================================
+   Regras (executadas pelo anfitrião)
+   =================================================================== */
+function addLog(team, text) { G.log.push({ team, text }); if (G.log.length > 100) G.log.shift(); }
+function setPhaseTimer() { G.deadline = (G.settings.timer && G.phase !== 'over') ? Date.now() + G.settings.timer * 1000 : null; }
+function newRound() {
+  let pool = poolFor(G.settings.packs);
+  if (pool.length < 25) { pool = poolFor(['geral']); }
+  const fresh = pool.filter(w => !lastWords.includes(w));
+  const words = shuffle(fresh.length >= 25 ? fresh : pool).slice(0, 25);
+  lastWords = words;
+  const start = Math.random() < .5 ? 'red' : 'blue';
+  const key = shuffle([...Array(9).fill(start), ...Array(8).fill(other(start)), ...Array(7).fill('n'), 'a']);
+  Object.assign(G, { round: (G.round || 0) + 1, words, key, revealed: Array(25).fill(false), start, turn: start,
+    phase: 'clue', clue: null, guessesLeft: 0, guessesMade: 0, marks: {}, winner: null, reason: '', log: [] });
+  addLog(null, `Nova partida. ${TEAM[start]} começa (9 agentes contra 8).`);
+  setPhaseTimer();
+}
+function remaining() { const r = { red: 0, blue: 0 }; G.key.forEach((k, i) => { if (!G.revealed[i] && r[k] !== undefined) r[k]++; }); return r; }
+function endTurn() { G.turn = other(G.turn); G.phase = 'clue'; G.clue = null; G.marks = {}; G.guessesLeft = 0; G.guessesMade = 0; setPhaseTimer(); }
+function finish(winner, reason) { G.phase = 'over'; G.winner = winner; G.reason = reason; G.marks = {}; G.deadline = null; addLog(winner, `${TEAM[winner]} venceu! ${reason}`); }
+function smallerTeam() { const c = { red: 0, blue: 0 }; Object.values(G.players).forEach(p => { if (c[p.team] !== undefined) c[p.team]++; }); return c.red <= c.blue ? 'red' : 'blue'; }
+function clearMarksOf(pid) { for (const k of Object.keys(G.marks)) { G.marks[k] = G.marks[k].filter(x => x !== pid); if (!G.marks[k].length) delete G.marks[k]; } }
+// personagem pedido por alguém: precisa existir (quando o anfitrião conhece a lista) e não pode estar com outra pessoa
+function validAvatar(a, pid) {
+  a = String(a || '').slice(0, 40);
+  if (!a) return null;
+  if (hasAvatars() && !ICONS.avatares[a]) return null;
+  if (Object.entries(G.players).some(([id, p]) => id !== pid && p.avatar === a)) return null;
+  return a;
+}
+// sorteia times e mestres entre quem já está jogando (quem está assistindo continua assistindo)
+function shuffleTeams(onlyPlaying) {
+  const ids = shuffle(Object.keys(G.players).filter(id => G.players[id].on && (!onlyPlaying || G.players[id].team)));
+  ids.forEach((id, i) => { G.players[id].team = i % 2 ? 'blue' : 'red'; G.players[id].role = 'agente'; });
+  for (const t of ['red', 'blue']) { const first = ids.find(id => G.players[id].team === t); if (first) G.players[first].role = 'mestre'; }
+  G.marks = {};
+  return ids.length;
+}
+function masterOf(team, except) { return Object.entries(G.players).find(([id, q]) => id !== except && q.team === team && q.role === 'mestre'); }
+
+function act(pid, m) {
+  const p = G.players[pid];
+  if (!p) return 'Jogador desconhecido.';
+  const isTurnAgent = p.team === G.turn && p.role === 'agente';
+  if (String(m.t).startsWith('adm-') || m.t === 'new') { if (!p.host) return 'Só o anfitrião pode fazer isso.'; return admin(m); }
+  switch (m.t) {
+    case 'avatar': {
+      const a = validAvatar(m.avatar, pid);
+      if (!a) return 'Esse personagem já está com outra pessoa da sala.';
+      p.avatar = a; return null;
+    }
+    case 'team': {
+      const team = m.team === null ? null : (TEAM[m.team] ? m.team : undefined);
+      if (team === undefined) return null;
+      if (p.team !== team) { p.team = team; p.role = 'agente'; clearMarksOf(pid); }
+      return null;
+    }
+    case 'role': {
+      if (m.role === 'mestre') {
+        if (!p.team) return 'Escolha um time primeiro.';
+        const o = masterOf(p.team, pid);
+        if (o) return `${o[1].name} já é o mestre do ${TEAM[p.team]}.`;
+        p.role = 'mestre'; clearMarksOf(pid);
+      } else p.role = 'agente';
+      return null;
+    }
+    case 'clue': {
+      if (G.phase !== 'clue') return 'Agora não é hora de dar dica.';
+      if (p.team !== G.turn || p.role !== 'mestre') return 'Só o mestre do time da vez pode dar a dica.';
+      const word = String(m.word || '').trim().toUpperCase().slice(0, 24);
+      if (!word) return 'Escreva uma dica.';
+      if (/\s/.test(word)) return 'A dica precisa ser uma palavra só.';
+      const nw = norm(word);
+      if (G.words.some((w, i) => !G.revealed[i] && norm(w) === nw)) return 'A dica não pode ser uma palavra que está no tabuleiro.';
+      const n = m.n === 'inf' ? 'inf' : Math.max(0, Math.min(9, parseInt(m.n, 10) || 0));
+      G.clue = { word, n, team: G.turn };
+      G.guessesLeft = (n === 'inf' || n === 0) ? 99 : n + 1;
+      G.guessesMade = 0; G.phase = 'guess'; setPhaseTimer();
+      addLog(G.turn, `${p.name} deu a dica ${word} · ${n === 'inf' ? '∞' : n}`);
+      return null;
+    }
+    case 'mark': {
+      const i = m.i | 0;
+      if (G.phase !== 'guess' || !isTurnAgent || i < 0 || i > 24 || G.revealed[i]) return null;
+      const list = G.marks[i] || [];
+      G.marks[i] = list.includes(pid) ? list.filter(x => x !== pid) : [...list, pid];
+      if (!G.marks[i].length) delete G.marks[i];
+      return null;
+    }
+    case 'guess': {
+      const i = m.i | 0;
+      if (G.phase !== 'guess') return 'Espere a dica do mestre.';
+      if (!isTurnAgent) return 'Só os agentes do time da vez podem revelar cartas.';
+      if (i < 0 || i > 24 || G.revealed[i]) return null;
+      G.revealed[i] = true; G.marks = {};
+      const c = G.key[i];
+      const what = { red: 'agente Vermelho', blue: 'agente Azul', n: 'civil', a: 'o ASSASSINO' }[c];
+      addLog(p.team, `${p.name} revelou ${G.words[i]}: ${what}`);
+      if (c === 'a') { finish(other(G.turn), `O ${TEAM[G.turn]} encontrou o assassino.`); return null; }
+      const r = remaining();
+      if (r.red === 0) { finish('red', 'Todos os agentes vermelhos foram encontrados.'); return null; }
+      if (r.blue === 0) { finish('blue', 'Todos os agentes azuis foram encontrados.'); return null; }
+      if (c === G.turn) { G.guessesMade++; G.guessesLeft--; if (G.guessesLeft <= 0) { addLog(null, 'Acabaram os palpites. A vez passa.'); endTurn(); } }
+      else endTurn();
+      return null;
+    }
+    case 'pass': {
+      if (G.phase !== 'guess' || !isTurnAgent) return null;
+      if (G.guessesMade < 1) return 'Faça pelo menos um palpite antes de encerrar.';
+      addLog(p.team, `${p.name} encerrou os palpites.`); endTurn(); return null;
+    }
+  }
+  return null;
+}
+
+function admin(m) {
+  const target = m.pid && G.players[m.pid];
+  switch (m.t) {
+    case 'new': {
+      const rotate = G.settings.rotate && shuffleTeams(true) > 1;
+      newRound();
+      addLog(null, rotate ? 'Nova partida com times sorteados de novo.' : 'O anfitrião começou uma nova partida.');
+      return null;
+    }
+    case 'adm-team':
+      if (!target) return null;
+      if (target.team !== m.team) { target.team = TEAM[m.team] ? m.team : null; target.role = 'agente'; clearMarksOf(m.pid); }
+      return null;
+    case 'adm-role':
+      if (!target) return null;
+      if (m.role === 'mestre') {
+        if (!target.team) return 'Coloque o jogador num time antes.';
+        const o = masterOf(target.team, m.pid); if (o) o[1].role = 'agente';
+        target.role = 'mestre'; clearMarksOf(m.pid);
+      } else target.role = 'agente';
+      return null;
+    case 'adm-kick': {
+      if (!target || target.host) return null;
+      const c = conns.get(m.pid);
+      if (c) { try { c.send({ t: 'kicked' }); } catch {} setTimeout(() => { try { c.close(); } catch {} }, 300); conns.delete(m.pid); }
+      banned.add(m.pid); clearMarksOf(m.pid);
+      addLog(null, `${target.name} foi removido da sala.`);
+      delete G.players[m.pid];
+      return null;
+    }
+    case 'adm-shuffle': {
+      shuffleTeams(false); addLog(null, 'Times sorteados.'); return null;
+    }
+    case 'adm-skip':
+      if (G.phase === 'over') return null;
+      addLog(null, `O anfitrião passou a vez do ${TEAM[G.turn]}.`); endTurn(); return null;
+    case 'adm-settings': {
+      const s = m.settings || {};
+      if (Array.isArray(s.packs)) G.settings.packs = s.packs.slice(0, 40).map(String);
+      if (s.timer !== undefined) { G.settings.timer = [0, 45, 60, 90, 120, 180].includes(+s.timer) ? +s.timer : 0; setPhaseTimer(); }
+      if (s.icons !== undefined) G.settings.icons = !!s.icons;
+      if (s.rotate !== undefined) G.settings.rotate = !!s.rotate;
+      return null;
+    }
+  }
+  return null;
+}
+
+function viewFor(pid) {
+  const p = G.players[pid];
+  const seeAll = G.phase === 'over' || (p && p.role === 'mestre');
+  return { ...G, key: G.key.map((k, i) => (seeAll || G.revealed[i]) ? k : null), remaining: remaining(),
+    timeLeft: G.deadline ? Math.max(0, G.deadline - Date.now()) : null, you: pid };
+}
+function saveHost() {
+  store.set(localStorage, 'op-host', JSON.stringify({ code: roomCode, pid: myPid, G, lastWords, savedAt: Date.now() }));
+}
+function broadcast() {
+  for (const [pid, c] of conns) { if (c.open) { try { c.send({ t: 'state', s: viewFor(pid) }); } catch {} } }
+  saveHost();
+  receive(viewFor(myPid));
+}
+function send(m) {
+  if (isHost) { const err = act(myPid, m); if (err) toast(err); else broadcast(); }
+  else if (conn && conn.open) conn.send(m);
+  else toast('Sem conexão com a sala. Tentando reconectar…');
+}
+setInterval(() => {
+  if (!isHost || !G || !G.deadline || G.phase === 'over') return;
+  if (Date.now() >= G.deadline) {
+    addLog(null, G.phase === 'clue' ? `Tempo esgotado: o mestre do ${TEAM[G.turn]} não deu dica.` : `Tempo esgotado para o ${TEAM[G.turn]}.`);
+    endTurn(); broadcast();
+  }
+}, 500);
+
+/* ===================================================================
+   Rede: anfitrião
+   =================================================================== */
+let hostTries = 0;
+function hostCreate(restore) {
+  isHost = true;
+  roomCode = restore ? restore.code : genCode();
+  lobbyErr(restore ? 'Retomando a sala…' : 'Criando sala…', true);
+  if (peer) { try { peer.destroy(); } catch {} }
+  peer = new Peer(PREFIX + roomCode, { debug: 0 });
+  peer.on('open', () => {
+    hostTries = 0;
+    if (restore) {
+      G = restore.G; lastWords = restore.lastWords || [];
+      for (const [id, p] of Object.entries(G.players)) p.on = id === myPid;
+      G.players[myPid] = G.players[myPid] || { name: myName, team: 'red', role: 'agente' };
+      Object.assign(G.players[myPid], { on: true, host: true, name: G.players[myPid].name || myName });
+      addLog(null, 'O anfitrião voltou. Sala retomada.');
+      if (G.deadline) setPhaseTimer();
+    } else {
+      G = { code: roomCode, players: {}, settings: { packs: ['geral', 'brasil', 'bichos', 'comida'], timer: 0, icons: true, rotate: true } };
+      G.players[myPid] = { name: myName, team: null, role: 'agente', on: true, host: true, avatar: myAvatar };
+      newRound();
+    }
+    enterGame(); broadcast();
+  });
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id' && !inGame) {
+      if (restore && ++hostTries < 15) { lobbyErr('Retomando a sala… aguardando o código ser liberado.', true); setTimeout(() => hostCreate(restore), 2000); return; }
+      if (!restore) { hostCreate(); return; }
+      lobbyErr('Não deu para retomar a sala. Crie uma nova.'); return;
+    }
+    if (e.type === 'peer-unavailable') return;
+    if (!inGame) lobbyErr('Não foi possível criar a sala (' + e.type + '). Verifique a internet e tente de novo.');
+    else showBanner('Conexão do anfitrião instável (' + e.type + '). Os jogadores podem cair.', true);
+  });
+  peer.on('disconnected', () => { setTimeout(() => { try { if (peer && !peer.destroyed) peer.reconnect(); } catch {} }, 1000); });
+  peer.on('connection', c => {
+    c.on('data', m => {
+      if (!m || typeof m !== 'object') return;
+      if (m.t === 'join') {
+        const pid = String(m.pid || '').slice(0, 40); if (!pid || pid === myPid) return;
+        if (banned.has(pid)) { try { c.send({ t: 'kicked' }); } catch {} setTimeout(() => { try { c.close(); } catch {} }, 300); return; }
+        const name = String(m.name || 'Jogador').trim().slice(0, 20) || 'Jogador';
+        const old = conns.get(pid); if (old && old !== c) { try { old.close(); } catch {} }
+        conns.set(pid, c); c._pid = pid;
+        if (G.players[pid]) {
+          Object.assign(G.players[pid], { on: true, name });
+          if (m.avatar && m.avatar !== G.players[pid].avatar) G.players[pid].avatar = validAvatar(m.avatar, pid) || G.players[pid].avatar || null;
+        } else {
+          G.players[pid] = { name, team: null, role: 'agente', on: true, avatar: validAvatar(m.avatar, pid) };
+          addLog(null, `${name} entrou na sala.`);
+        }
+        broadcast(); return;
+      }
+      if (!c._pid || conns.get(c._pid) !== c) return;
+      const err = act(c._pid, m);
+      if (err) { try { c.send({ t: 'err', msg: err }); } catch {} } else broadcast();
+    });
+    c.on('close', () => {
+      if (c._pid && conns.get(c._pid) === c) { conns.delete(c._pid); if (G.players[c._pid]) G.players[c._pid].on = false; broadcast(); }
+    });
+  });
+}
+
+/* ===================================================================
+   Rede: convidado (com reconexão automática)
+   =================================================================== */
+let joinTimer, reconnecting = false;
+function ensurePeer(then) {
+  if (peer && !peer.destroyed && peer.open) { then(); return; }
+  if (peer && !peer.destroyed && peer.disconnected) { try { peer.reconnect(); } catch {} return; }
+  if (peer) { try { peer.destroy(); } catch {} }
+  peer = new Peer({ debug: 0 });
+  peer.on('open', then);
+  peer.on('error', e => {
+    if (e.type === 'peer-unavailable') {
+      if (!inGame) { clearTimeout(joinTimer); lobbyErr('Sala não encontrada. Confira o código com quem criou a sala.'); }
+      return;
+    }
+    if (!inGame) { clearTimeout(joinTimer); lobbyErr('Erro de conexão (' + e.type + '). Tente de novo.'); }
+  });
+  peer.on('disconnected', () => { setTimeout(() => { try { if (peer && !peer.destroyed) peer.reconnect(); } catch {} }, 1000); });
+}
+function joinRoom(code) {
+  isHost = false; roomCode = code; kicked = false;
+  lobbyErr('Conectando…', true);
+  clearTimeout(joinTimer);
+  joinTimer = setTimeout(() => { if (!view) lobbyErr('A sala não respondeu. Confira o código e peça ao anfitrião para manter a página aberta.'); }, 12000);
+  ensurePeer(connect);
+}
+function connect() {
+  const c = peer.connect(PREFIX + roomCode, { reliable: true });
+  conn = c;
+  c.on('open', () => c.send({ t: 'join', pid: myPid, name: myName, avatar: myAvatar }));
+  c.on('data', m => {
+    if (c !== conn) return;
+    if (m.t === 'state') { clearTimeout(joinTimer); reconnecting = false; $('#banner').hidden = true; receive(m.s); }
+    else if (m.t === 'err') toast(m.msg);
+    else if (m.t === 'kicked') { kicked = true; leaveToLobby('O anfitrião removeu você da sala.'); }
+  });
+  c.on('close', () => { if (c === conn && inGame && !kicked) autoReconnect(); });
+}
+function autoReconnect() {
+  if (reconnecting || kicked || isHost) return;
+  reconnecting = true; showBanner('Conexão perdida. Reconectando…', false);
+  let tries = 0;
+  const tick = () => {
+    if (!reconnecting || kicked) return;
+    if (conn && conn.open) { reconnecting = false; return; }
+    if (++tries > 30) { reconnecting = false; showBanner('Não foi possível reconectar. O anfitrião pode ter fechado a sala.', true); return; }
+    ensurePeer(connect);
+    setTimeout(tick, 4000);
+  };
+  tick();
+}
+function showBanner(text, withBtn) { $('#banner-text').textContent = text; $('#reconnect').hidden = !withBtn; $('#banner').hidden = false; }
+$('#reconnect').onclick = () => { $('#banner').hidden = true; if (isHost) { hostCreate({ code: roomCode, G, lastWords }); } else autoReconnect(); };
+
+/* ===================================================================
+   Lobby, entrada e saída
+   =================================================================== */
+function lobbyErr(t, info) { const e = $('#lobby-err'); e.textContent = t; e.classList.toggle('info', !!info); }
+function readName() {
+  const n = $('#name').value.trim().slice(0, 20);
+  if (!n) { lobbyErr('Digite seu nome para jogar.'); $('#name').focus(); return false; }
+  if (hasAvatars() && !myAvatar) { lobbyErr('Escolha seu personagem antes de entrar.'); return false; }
+  myName = n; store.set(localStorage, 'op-name', n); return true;
+}
+function savedHost() { try { const s = JSON.parse(store.get(localStorage, 'op-host') || 'null'); return s && s.G && Date.now() - s.savedAt < 12 * 3600e3 ? s : null; } catch { return null; } }
+$('#create').onclick = () => { if (readName()) hostCreate(); };
+$('#join').onclick = () => {
+  if (!readName()) return;
+  const code = $('#join-code').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code.length !== 5) { lobbyErr('O código da sala tem 5 caracteres.'); return; }
+  joinRoom(code);
+};
+function resumeHost(s) { myPid = s.pid; store.set(sessionStorage, 'op-pid', myPid); hostCreate(s); }
+$('#resume').onclick = () => { if (!readName()) return; const s = savedHost(); if (s) resumeHost(s); };
+$('#join-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('#join').click(); });
+$('#name').addEventListener('keydown', e => { if (e.key === 'Enter') (hashCode ? $('#join') : $('#create')).click(); });
+
+(function boot() {
+  const s = savedHost();
+  if (s) { $('#resume').hidden = false; $('#resume').textContent = `Retomar minha sala ${s.code}`; }
+  // anfitrião recarregou a página: retoma sozinho
+  if (s && hashCode && s.code === hashCode && s.pid === myPid && myName) { resumeHost(s); return; }
+  // convidado recarregou a página: volta para a mesma sala
+  if (hashCode && myName && store.get(sessionStorage, 'op-room') === hashCode) joinRoom(hashCode);
+})();
+
+function enterGame() {
+  inGame = true; $('#lobby').hidden = true; $('#game').hidden = false;
+  $('#room-code').textContent = roomCode;
+  $('#open-admin').hidden = !isHost;
+  store.set(sessionStorage, 'op-room', roomCode);
+  try { history.replaceState(null, '', '#' + roomCode); } catch {}
+}
+function leaveToLobby(msg) {
+  inGame = false; view = null; reconnecting = false; prevRound = null;
+  try { conn && conn.close(); } catch {}
+  try { peer && peer.destroy(); } catch {}
+  peer = null; conn = null;
+  store.del(sessionStorage, 'op-room');
+  if (isHost) { store.del(localStorage, 'op-host'); conns.clear(); G = null; isHost = false; }
+  $('#game').hidden = true; $('#admin').hidden = true; $('#lobby').hidden = false; $('#banner').hidden = true;
+  $('#resume').hidden = !savedHost();
+  try { history.replaceState(null, '', location.pathname); } catch {}
+  lobbyErr(msg || '');
+}
+$('#leave').onclick = () => askConfirm(isHost ? 'Sair e encerrar a sala para todo mundo?' : 'Sair da sala?', 'Sair', () => leaveToLobby(''));
+$('#copy-link').onclick = () => {
+  const link = location.href.split('#')[0] + '#' + roomCode;
+  const text = `Bora jogar Operação Clubber! Sala ${roomCode}: ${link}`;
+  if (navigator.share && matchMedia('(pointer:coarse)').matches) { navigator.share({ text }).catch(() => {}); return; }
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('Convite copiado.'), () => toast('Código da sala: ' + roomCode));
+  else toast('Código da sala: ' + roomCode);
+};
+
+/* ===================================================================
+   Controles da partida
+   =================================================================== */
+$('#clue-form').addEventListener('submit', e => { e.preventDefault(); send({ t: 'clue', word: $('#clue-word').value, n: $('#clue-n').value }); });
+$('#pass').onclick = () => send({ t: 'pass' });
+$('#over-new').onclick = () => send({ t: 'new' });
+
+/* ===================================================================
+   Render
+   =================================================================== */
+let prevRevealed = null, prevRound = null, prevPhaseKey = '', deadlineLocal = null, pickerNagged = false;
+function receive(s) {
+  view = s;
+  deadlineLocal = s.timeLeft != null ? Date.now() + s.timeLeft : null;
+  if (!inGame) enterGame();
+  render(); renderAdmin();
+}
+setInterval(updateTimer, 250);
+function updateTimer() {
+  const t = $('#timer');
+  if (!view || deadlineLocal == null || view.phase === 'over') { t.hidden = true; return; }
+  const s = Math.max(0, Math.ceil((deadlineLocal - Date.now()) / 1000));
+  t.hidden = false; t.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  t.classList.toggle('low', s <= 10);
+}
+
+function render() {
+  if (!view || !inGame) return;
+  const S = view, me = S.players[S.you] || {};
+  const myTurnAgent = S.phase === 'guess' && me.team === S.turn && me.role === 'agente';
+  const myTurnMaster = S.phase === 'clue' && me.team === S.turn && me.role === 'mestre';
+  const showIcons = S.settings && S.settings.icons;
+  const playing = S.phase !== 'over';
+
+  // placar (celular)
+  $('#score-red').textContent = S.remaining.red; $('#score-blue').textContent = S.remaining.blue;
+  $('#score-red').classList.toggle('on', !playing ? S.winner === 'red' : S.turn === 'red');
+  $('#score-blue').classList.toggle('on', !playing ? S.winner === 'blue' : S.turn === 'blue');
+  $('#score-mid').textContent = me.team ? `Você: ${TEAM_SHORT[me.team]} · ${me.role === 'mestre' ? 'mestre' : 'agente'}` : 'Escolha um time abaixo';
+
+  // meu personagem (topo); sem personagem válido, abre a escolha uma vez
+  const myAvBtn = $('#my-av');
+  myAvBtn.hidden = !hasAvatars();
+  if (avatarSrc(me.avatar)) myAvBtn.querySelector('img').src = avatarSrc(me.avatar);
+  else myAvBtn.querySelector('img').removeAttribute('src');
+  if (hasAvatars() && !me.avatar && !pickerNagged) {
+    pickerNagged = true;
+    if (myAvatar) toast('Seu personagem já estava com outra pessoa. Escolha outro.');
+    setTimeout(openAvatarPicker, 300);
+  }
+  if (me.avatar) pickerNagged = false;
+  const face = p => avatarSrc(p.avatar) ? h('img', { class: 'mini-av', src: avatarSrc(p.avatar), alt: '' }) : h('span', { class: 'mini-av none' }, (p.name || '?')[0].toUpperCase());
+
+  // times
+  for (const t of ['red', 'blue']) {
+    const box = $('#team-' + t);
+    const ps = Object.entries(S.players).filter(([, p]) => p.team === t);
+    const master = ps.filter(([, p]) => p.role === 'mestre');
+    const agents = ps.filter(([, p]) => p.role !== 'mestre');
+    const row = ([id, p]) => h('li', {},
+      h('span', { class: 'who-av' }, face(p), h('span', { class: 'on-dot' + (p.on ? '' : ' off'), title: p.on ? 'online' : 'offline' })),
+      h('span', { class: 'nm' }, p.name), id === S.you ? h('span', { class: 'me' }, 'você') : null);
+    const actions = h('div', { class: 'team-act' });
+    if (me.team !== t) actions.append(h('button', { class: 'btn small ' + t, onclick: () => send({ t: 'team', team: t }) }, 'Entrar no time'));
+    else if (me.role === 'mestre') actions.append(h('button', { class: 'btn small', onclick: () => send({ t: 'role', role: 'agente' }) }, 'Virar agente'));
+    else if (!master.length) actions.append(h('button', { class: 'btn small ' + t, onclick: () => send({ t: 'role', role: 'mestre' }) }, 'Ser o mestre'));
+    const isTurn = playing && S.turn === t;
+    const won = !playing && S.winner === t;
+    const tag = won ? 'venceu!' : !playing ? 'fim de jogo' : isTurn ? (S.phase === 'clue' ? 'na vez · dica' : 'na vez · chutes') : 'esperando';
+    box.className = 'team ' + t + (isTurn || won ? ' turn' : '');
+    box.replaceChildren(
+      h('div', { class: 'team-top' }, h('div', {}, h('div', { class: 'team-name' }, TEAM_SHORT[t]), h('span', { class: 'turn-tag' }, tag)),
+        h('div', { class: 'count', title: 'agentes que faltam' }, S.remaining[t])),
+      h('div', { class: 'team-sec' }, h('div', { class: 'label' }, 'Mestre'), master.length ? h('ul', { class: 'roster' }, master.map(row)) : h('div', { class: 'vacant' }, 'Vaga aberta')),
+      h('div', { class: 'team-sec' }, h('div', { class: 'label' }, 'Agentes'), agents.length ? h('ul', { class: 'roster' }, agents.map(row)) : h('div', { class: 'vacant' }, 'Ninguém ainda')),
+      actions.childNodes.length ? actions : h('div', { style: 'height:10px' })
+    );
+  }
+
+  // recado
+  const st = $('#status'); st.className = 'status ' + (playing ? S.turn : S.winner);
+  $('#status-who').textContent = TEAM_SHORT[playing ? S.turn : S.winner];
+  const hasMaster = Object.values(S.players).some(p => p.team === S.turn && p.role === 'mestre');
+  let txt;
+  if (!playing) txt = `${TEAM[S.winner]} venceu! ${S.reason}`;
+  else if (S.phase === 'clue') txt = myTurnMaster ? 'Sua vez! Dê uma dica de uma palavra e um número.' :
+    !hasMaster ? `O ${TEAM[S.turn]} precisa de um mestre.` : 'O mestre está pensando na dica…';
+  else txt = myTurnAgent ? 'Sua vez! Toque numa carta para marcar e confirme em Revelar.' : 'Os agentes estão discutindo…';
+  $('#status-text').textContent = txt;
+
+  // tabuleiro
+  const fresh = prevRound !== S.round;
+  $('#board').replaceChildren(...S.words.map((w, i) => {
+    const k = S.key[i], rev = S.revealed[i];
+    const marks = (S.marks && S.marks[i]) || [];
+    const mine = marks.includes(S.you);
+    const iconFile = showIcons && ICONS.palavras[norm(w)];
+    const tilt = ((hash(w + S.round) % 15) - 7) / 7; // -1deg a 1deg: carta largada na mesa
+    let cls = 'card';
+    const art = rev ? cardArtFile(k, w + ':' + S.round, S) : null;
+    if (rev) cls += ' rev ' + k + (art && art.portrait ? ' portrait' : '');
+    else if (k) cls += ' hint ' + k;
+    if (!rev && iconFile) cls += ' has-art';
+    if (!rev && myTurnAgent) cls += ' clickable';
+    if (marks.length) cls += ' marked';
+    if (mine && myTurnAgent) cls += ' mine';
+    if (fresh) cls += ' deal';
+    else if (prevRevealed && rev && !prevRevealed[i]) cls += ' flip';
+    const len = Math.max(6, ...w.split(/[-\s]/).map(s => s.length));
+    const card = h('div', { class: cls, style: `--r:${tilt.toFixed(2)}deg;--i:${i};--len:${len}`, role: 'gridcell', tabindex: (!rev && myTurnAgent) ? '0' : null, 'aria-label': w + (rev ? ' (revelada)' : '') },
+      marks.length ? h('div', { class: 'marks' }, marks.map(id => h('span', {}, ((S.players[id] || {}).name || '?')))) : null,
+      rev ? revealedArt(art, k) : iconFile ? h('div', { class: 'art' }, h('img', { src: 'icones/' + iconFile, alt: '', loading: 'lazy' })) : null,
+      h('span', { class: 'word' }, w),
+      (mine && myTurnAgent) ? h('button', { class: 'reveal-btn', onclick: e => { e.stopPropagation(); send({ t: 'guess', i }); } }, 'Revelar') : null
+    );
+    if (!rev && myTurnAgent) {
+      card.addEventListener('click', () => send({ t: 'mark', i }));
+      card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); send({ t: mine ? 'guess' : 'mark', i }); } });
+    }
+    return card;
+  }));
+  prevRevealed = S.revealed.slice(); prevRound = S.round;
+  fitWords();
+
+  // barra de dica
+  const phaseKey = S.round + ':' + S.phase + ':' + S.turn;
+  $('#clue-form').hidden = !myTurnMaster;
+  if (myTurnMaster && phaseKey !== prevPhaseKey) { $('#clue-word').value = ''; $('#clue-n').value = '1'; if (matchMedia('(pointer:fine)').matches) setTimeout(() => $('#clue-word').focus(), 0); }
+  prevPhaseKey = phaseKey;
+  const cs = $('#clue-show');
+  if (S.phase === 'guess' && S.clue) {
+    cs.hidden = false; cs.style.setProperty('--cc', `var(--${S.clue.team})`);
+    cs.replaceChildren(h('b', {}, S.clue.word), h('span', { class: 'n' }, S.clue.n === 'inf' ? '∞' : S.clue.n),
+      h('span', { class: 'left' }, S.guessesLeft >= 99 ? 'chutes livres' : `${S.guessesLeft} chute${S.guessesLeft === 1 ? '' : 's'}`));
+  } else cs.hidden = true;
+  $('#pass').hidden = !myTurnAgent; $('#pass').disabled = !(S.guessesMade >= 1);
+  const amHost = !!me.host;
+  $('#over-new').hidden = !(!playing && amHost);
+  const wait = $('#clue-wait');
+  let waitTxt = '';
+  if (!playing && !amHost) waitTxt = 'Fim de jogo! O anfitrião começa a próxima.';
+  else if (S.phase === 'clue' && !myTurnMaster) waitTxt = hasMaster ? `Aguardando a dica do mestre ${TEAM_SHORT[S.turn].toLowerCase()}.` : `O ${TEAM[S.turn]} precisa de um mestre.`;
+  wait.hidden = !waitTxt; wait.textContent = waitTxt;
+
+  // histórico
+  $('#log').replaceChildren(...S.log.slice().reverse().map(e => h('li', { class: e.team || '' }, h('span', {}, e.text))));
+  $('#log-count').textContent = S.log.length;
+  updateTimer();
+}
+if (matchMedia('(max-width:860px)').matches) $('#logbox').open = false;
+
+/* Palavra que não coube numa linha (fora os hífens) encolhe até caber, sem quebrar no meio. */
+function lineCount(el) { const r = document.createRange(); r.selectNodeContents(el); return new Set([...r.getClientRects()].map(x => Math.round(x.top))).size; }
+function fitWords() {
+  for (const el of document.querySelectorAll('#board .card:not(.rev) .word')) {
+    el.style.fontSize = '';
+    const parts = el.textContent.split('-').length;
+    let fs = parseFloat(getComputedStyle(el).fontSize), guard = 0;
+    while (lineCount(el) > parts && fs > 7 && guard++ < 20) { fs *= .92; el.style.fontSize = fs.toFixed(2) + 'px'; }
+  }
+}
+let fitTimer; addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitWords, 120); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitWords);
+
+/* ===================================================================
+   Painel do anfitrião
+   =================================================================== */
+let adminTab = 'players', editing = null; // editing = {id|null, name, text}
+$('#open-admin').onclick = () => { $('#admin').hidden = false; renderAdmin(); };
+$('#admin-close').onclick = () => { $('#admin').hidden = true; editing = null; };
+$('#admin').addEventListener('click', e => { if (e.target.id === 'admin') $('#admin-close').click(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!$('#confirm').hidden) $('#confirm-no').click(); else if (!$('#admin').hidden) $('#admin-close').click(); } });
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { adminTab = b.dataset.tab; editing = null; renderAdmin(); });
+
+function renderAdmin() {
+  if (!isHost || !G || $('#admin').hidden) return;
+  const ae = document.activeElement;
+  if (editing && ae && (ae.id === 'list-name' || ae.id === 'list-words')) return; // não apagar o que está sendo digitado
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === adminTab)));
+  const body = $('#admin-body');
+  const adm = m => { const err = act(myPid, m); if (err) toast(err); broadcast(); };
+
+  if (adminTab === 'players') {
+    const rows = Object.entries(G.players).map(([id, p]) => h('div', { class: 'prow' },
+      h('span', { class: 'nm' }, h('span', { class: 'who-av' },
+          avatarSrc(p.avatar) ? h('img', { class: 'mini-av', src: avatarSrc(p.avatar), alt: '' }) : h('span', { class: 'mini-av none' }, (p.name || '?')[0].toUpperCase()),
+          h('span', { class: 'on-dot' + (p.on ? '' : ' off') })),
+        p.name + (id === myPid ? ' (você)' : '')),
+      h('select', { 'aria-label': 'Time de ' + p.name, onchange: e => adm({ t: 'adm-team', pid: id, team: e.target.value || null }) },
+        h('option', { value: 'red', selected: p.team === 'red' }, 'Vermelho'), h('option', { value: 'blue', selected: p.team === 'blue' }, 'Azul'), h('option', { value: '', selected: !p.team }, 'Assistindo')),
+      h('select', { 'aria-label': 'Função de ' + p.name, disabled: !p.team, onchange: e => adm({ t: 'adm-role', pid: id, role: e.target.value }) },
+        h('option', { value: 'agente', selected: p.role !== 'mestre' }, 'Agente'), h('option', { value: 'mestre', selected: p.role === 'mestre' }, 'Mestre')),
+      p.host ? h('span', { class: 'kick label' }, 'anfitrião') :
+        h('button', { class: 'btn small danger kick', onclick: () => askConfirm(`Remover ${p.name} da sala?`, 'Remover', () => adm({ t: 'adm-kick', pid: id })) }, 'Remover')
+    ));
+    body.replaceChildren(
+      h('div', { class: 'row', style: 'justify-content:space-between' },
+        h('p', { class: 'note' }, 'Mude o time e a função de qualquer jogador.'),
+        h('button', { class: 'btn small primary', onclick: () => adm({ t: 'adm-shuffle' }) }, 'Sortear times e mestres')),
+      h('div', { class: 'plist' }, rows),
+      h('p', { class: 'note' }, 'Quem virar mestre no meio da partida passa a ver as cores das cartas.')
+    );
+  }
+
+  if (adminTab === 'words') {
+    const lists = getLists(), sel = new Set(G.settings.packs);
+    const toggle = (id, on) => { const s = new Set(G.settings.packs); on ? s.add(id) : s.delete(id); adm({ t: 'adm-settings', settings: { packs: [...s] } }); };
+    const packRow = (id, title, desc, count, extra) => h('label', { class: 'pack' },
+      h('input', { type: 'checkbox', checked: sel.has(id), onchange: e => toggle(id, e.target.checked) }),
+      h('span', { class: 'info' }, h('b', {}, title), h('span', {}, desc)), h('span', { class: 'cnt' }, count), extra || null);
+    const total = poolFor(G.settings.packs).length;
+    const parts = [
+      h('h3', {}, 'Pacotes prontos'),
+      h('div', { class: 'packs' }, Object.entries(PACKS).map(([id, p]) => packRow(id, p.name, p.desc, p.words.length))),
+      h('div', { class: 'row', style: 'justify-content:space-between' }, h('h3', {}, 'Minhas listas'),
+        h('button', { class: 'btn small', onclick: () => { editing = { id: null, name: '', text: '' }; renderAdmin(); } }, 'Nova lista')),
+    ];
+    if (!lists.length && !editing) parts.push(h('p', { class: 'note' }, 'Nenhuma lista ainda. Crie uma com piadas internas, nomes da turma ou o tema da noite. Ela fica salva neste navegador.'));
+    if (lists.length) parts.push(h('div', { class: 'packs' }, lists.map(l =>
+      packRow('c:' + l.id, l.name, 'lista sua', l.words.length, h('span', { class: 'row', style: 'gap:6px' },
+        h('button', { class: 'btn small', onclick: e => { e.preventDefault(); editing = { id: l.id, name: l.name, text: l.words.join('\n') }; renderAdmin(); } }, 'Editar'),
+        h('button', { class: 'btn small danger', onclick: e => { e.preventDefault(); askConfirm(`Apagar a lista "${l.name}"?`, 'Apagar', () => {
+          setLists(getLists().filter(x => x.id !== l.id)); toggle('c:' + l.id, false); }); } }, 'Apagar'))))));
+    if (editing) {
+      const nameI = h('input', { type: 'text', id: 'list-name', maxlength: '30', placeholder: 'Ex.: Turma do trabalho', value: editing.name });
+      const textI = h('textarea', { id: 'list-words', placeholder: 'Uma palavra por linha, ou separadas por vírgula' }); textI.value = editing.text;
+      const cnt = h('span', { class: 'note' }, parseWords(editing.text).length + ' palavras');
+      textI.addEventListener('input', () => { editing.text = textI.value; cnt.textContent = parseWords(textI.value).length + ' palavras'; });
+      nameI.addEventListener('input', () => { editing.name = nameI.value; });
+      parts.push(h('div', { class: 'editor' },
+        h('div', { class: 'field' }, h('label', { class: 'label', for: 'list-name' }, editing.id ? 'Editar lista' : 'Nome da lista'), nameI),
+        h('div', { class: 'field' }, h('label', { class: 'label', for: 'list-words' }, 'Palavras'), textI),
+        h('div', { class: 'row', style: 'justify-content:space-between' }, cnt, h('span', { class: 'row', style: 'gap:6px' },
+          h('button', { class: 'btn small', onclick: () => { editing = null; renderAdmin(); } }, 'Cancelar'),
+          h('button', { class: 'btn small primary', onclick: () => {
+            const words = parseWords(textI.value), name = nameI.value.trim().slice(0, 30) || 'Minha lista';
+            if (!words.length) { toast('Escreva pelo menos uma palavra.'); return; }
+            const all = getLists(); let id = editing.id;
+            if (id) { const l = all.find(x => x.id === id); if (l) { l.name = name; l.words = words; } }
+            else { id = rid(6); all.push({ id, name, words }); }
+            setLists(all); editing = null;
+            if (!G.settings.packs.includes('c:' + id)) toggle('c:' + id, true); else renderAdmin();
+            toast('Lista salva.');
+          } }, 'Salvar lista')))));
+    }
+    parts.push(h('div', { class: 'sheet-foot' },
+      total < 25 ? h('p', { class: 'warn' }, `Só ${total} palavras selecionadas. O jogo precisa de pelo menos 25.`) : h('p', { class: 'note' }, `${total} palavras selecionadas. Valem a partir do próximo jogo.`),
+      h('button', { class: 'btn primary', disabled: total < 25, onclick: () => askConfirm('Começar um novo jogo com estas palavras?', 'Novo jogo', () => { adm({ t: 'new' }); $('#admin').hidden = true; }) }, 'Novo jogo com estas palavras')));
+    body.replaceChildren(...parts);
+  }
+
+  if (adminTab === 'rules') {
+    body.replaceChildren(
+      h('div', { class: 'field' }, h('label', { class: 'label', for: 'timer-sel' }, 'Tempo por etapa'),
+        h('select', { id: 'timer-sel', onchange: e => adm({ t: 'adm-settings', settings: { timer: e.target.value } }) },
+          ...[[0, 'Sem limite'], [45, '45 segundos'], [60, '1 minuto'], [90, '1 min e 30 s'], [120, '2 minutos'], [180, '3 minutos']]
+            .map(([v, l]) => h('option', { value: v, selected: G.settings.timer === v }, l))),
+        h('p', { class: 'note' }, 'Conta separado para a dica e para os chutes. Quando acaba, a vez passa.')),
+      h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!G.settings.rotate, onchange: e => adm({ t: 'adm-settings', settings: { rotate: e.target.checked } }) }),
+        'Sortear times e mestres a cada nova partida'),
+      h('p', { class: 'note' }, 'Só entra no sorteio quem está num time. Quem está assistindo continua assistindo.'),
+      h('div', { class: 'sheet-foot' },
+        h('button', { class: 'btn', disabled: G.phase === 'over', onclick: () => askConfirm(`Passar a vez do ${TEAM[G.turn]}?`, 'Passar a vez', () => adm({ t: 'adm-skip' })) }, 'Passar a vez'),
+        h('button', { class: 'btn primary', onclick: () => askConfirm('Começar um novo jogo? A partida atual será descartada.', 'Novo jogo', () => { adm({ t: 'new' }); $('#admin').hidden = true; }) }, 'Novo jogo'))
+    );
+  }
+
+  if (adminTab === 'icons') {
+    const nAv = Object.keys(ICONS.avatares).length, nWords = Object.keys(ICONS.palavras).length, nCards = Object.values(ICONS.cartas).flat().filter(Boolean).length;
+    body.replaceChildren(
+      h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!G.settings.icons, onchange: e => adm({ t: 'adm-settings', settings: { icons: e.target.checked } }) }), 'Mostrar ícones das palavras'),
+      h('p', { class: 'note' }, iconsLoaded ? `Encontrados ${nAv} personagens, ${nCards} artes de carta e ${nWords} ícones de palavras.` :
+        'Ainda não há icones/icones.json no site. O jogo usa o carimbo padrão nas cartas.'),
+      h('h3', {}, 'Como funciona'),
+      h('p', { class: 'note' }, 'Cada jogador escolhe um personagem da lista "avatares" ao entrar. Carta de agente revelada mostra o personagem de alguém daquele time. Civil e assassino usam a arte de "cartas", ou o carimbo se não houver.'),
+      h('pre', {}, `{
+  "avatares": {
+    "chapeu": "personagens/chapeu.webp",
+    "doutor": "personagens/doutor.webp"
+  },
+  "cartas": {
+    "civil": "cartas/civil.svg",
+    "assassino": "cartas/assassino.svg"
+  },
+  "palavras": {
+    "CACHORRO": "palavras/cachorro.svg"
+  }
+}`)
+    );
+  }
+}
+</script>
+</body>
+</html>
