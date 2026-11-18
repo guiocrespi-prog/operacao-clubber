@@ -346,6 +346,7 @@ pre{background:linear-gradient(180deg,#f1e6cc,#ddcda7);color:var(--print);border
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 </head>
 <body>
 
@@ -906,6 +907,7 @@ function hostCreate(restore) {
       newRound();
     }
     enterGame(); broadcast();
+    startRelayHost(roomCode);
   });
   peer.on('error', e => {
     if (e.type === 'unavailable-id' && !inGame) {
@@ -918,7 +920,11 @@ function hostCreate(restore) {
     else showBanner('Conexão do anfitrião instável (' + e.type + '). Os jogadores podem cair.', true);
   });
   peer.on('disconnected', () => { setTimeout(() => { try { if (peer && !peer.destroyed) peer.reconnect(); } catch {} }, 1000); });
-  peer.on('connection', c => {
+  peer.on('connection', attachHostConn);
+}
+
+// Uma conexão de jogador (direta ou pela reserva) chega ao anfitrião por aqui.
+function attachHostConn(c) {
     c.on('data', m => {
       if (!m || typeof m !== 'object') return;
       if (m.t === 'join') {
@@ -941,9 +947,142 @@ function hostCreate(restore) {
       if (err) { try { c.send({ t: 'err', msg: err }); } catch {} } else broadcast();
     });
     c.on('close', () => {
-      if (c._pid && conns.get(c._pid) === c) { conns.delete(c._pid); if (G.players[c._pid]) G.players[c._pid].on = false; broadcast(); }
+      if (c._pid && conns.get(c._pid) === c) { conns.delete(c._pid); if (G && G.players[c._pid]) G.players[c._pid].on = false; if (G) broadcast(); }
     });
+}
+
+/* ===================================================================
+   Reserva pelo servidor de mensagens (MQTT por WebSocket)
+   Quando a conexão direta não abre (4G, redes que bloqueiam), as mensagens
+   passam por um servidor público. Tudo vai criptografado: cada jogador combina
+   uma chave com o anfitrião (ECDH P-256) e as mensagens usam AES-GCM.
+   =================================================================== */
+const RELAY_URLS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
+const relayBase = code => 'opclubber/v1/' + code;
+const relayOk = () => !!(window.mqtt && window.crypto && crypto.subtle);
+const b64 = buf => { let s = ''; const a = new Uint8Array(buf); for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), ch => ch.charCodeAt(0));
+const genKeys = () => crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey']);
+const exportPub = kp => crypto.subtle.exportKey('jwk', kp.publicKey);
+async function deriveKey(priv, pubJwk) {
+  const pub = await crypto.subtle.importKey('jwk', pubJwk, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  return crypto.subtle.deriveKey({ name: 'ECDH', public: pub }, priv, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function seal(key, obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+  return { iv: b64(iv), ct: b64(ct) };
+}
+async function open_(key, m) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(m.iv) }, key, unb64(m.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+// conecta no primeiro servidor que responder; se cair depois, a própria biblioteca reconecta
+function mqttConnect(onConnect, onMessage) {
+  let idx = 0, client = null, stopped = false;
+  const handle = { end() { stopped = true; try { client && client.end(true); } catch {} }, publish(t, p, o) { try { client && client.connected && client.publish(t, p, o || {}); } catch {} }, get connected() { return !!(client && client.connected); } };
+  const tryNext = () => {
+    if (stopped) return;
+    const url = RELAY_URLS[idx++ % RELAY_URLS.length];
+    let ever = false;
+    client = mqtt.connect(url, { connectTimeout: 7000, reconnectPeriod: 3000, clean: true, clientId: 'opc_' + rid(12) });
+    const giveUp = setTimeout(() => { if (!ever && !stopped) { try { client.end(true); } catch {} tryNext(); } }, 8000);
+    client.on('connect', () => { ever = true; clearTimeout(giveUp); onConnect(client); });
+    client.on('message', (t, buf) => { let m; try { m = JSON.parse(buf.toString()); } catch { return; } onMessage(t, m); });
+    client.on('error', () => {});
+  };
+  tryNext();
+  return handle;
+}
+// conexão "de mentira" com a mesma cara da conexão direta: on('open'|'data'|'close'), send(), close()
+class RelayConn {
+  constructor(sendFn) { this.h = {}; this.open = false; this.sendFn = sendFn; this.q = Promise.resolve(); this.lastSeen = Date.now(); }
+  on(ev, fn) { (this.h[ev] = this.h[ev] || []).push(fn); }
+  emit(ev, a) { (this.h[ev] || []).slice().forEach(f => { try { f(a); } catch (e) { console.error(e); } }); }
+  send(obj) { if (!this.open) return; this.q = this.q.then(() => this.sendFn(obj)).catch(() => {}); }
+  close() { if (!this.open) return; this.open = false; this.emit('close'); }
+}
+
+/* anfitrião: publica a própria chave (retida no servidor) e atende quem chegar pela reserva */
+let relayHost = null;
+async function startRelayHost(code) {
+  if (!relayOk()) return;
+  stopRelayHost();
+  const keys = await genKeys(), pub = await exportPub(keys), base = relayBase(code);
+  const peers = new Map(); let queue = Promise.resolve();
+  const me = { code, peers };
+  me.client = mqttConnect(client => {
+    client.subscribe(base + '/h');
+    client.publish(base + '/k', JSON.stringify({ pub, at: Date.now() }), { retain: true, qos: 1 });
+  }, (topic, m) => {
+    queue = queue.then(async () => {
+      const pid = String(m.pid || '').slice(0, 40); if (!pid || pid === myPid) return;
+      if (m.hello) {
+        const old = peers.get(pid); if (old) old.close();
+        const rc = new RelayConn(async obj => me.client.publish(base + '/c/' + pid, JSON.stringify(await seal(rc.key, obj))));
+        rc.key = await deriveKey(keys.privateKey, m.hello); rc.open = true;
+        peers.set(pid, rc); attachHostConn(rc); return;
+      }
+      const rc = peers.get(pid); if (!rc || !rc.key || !rc.open) return;
+      let data; try { data = await open_(rc.key, m); } catch { return; }
+      rc.lastSeen = Date.now();
+      if (data.t === 'ping') { rc.send({ t: 'pong' }); return; }
+      rc.emit('data', data);
+    }).catch(() => {});
   });
+  // quem some da reserva por mais de 45 s fica offline
+  me.timer = setInterval(() => { for (const rc of peers.values()) if (rc.open && Date.now() - rc.lastSeen > 45000) rc.close(); }, 10000);
+  relayHost = me;
+}
+function stopRelayHost(clearKey) {
+  if (!relayHost) return;
+  if (clearKey) relayHost.client.publish(relayBase(relayHost.code) + '/k', '', { retain: true, qos: 1 });
+  clearInterval(relayHost.timer);
+  for (const rc of relayHost.peers.values()) rc.close();
+  const c = relayHost.client; setTimeout(() => c.end(), clearKey ? 600 : 0);
+  relayHost = null;
+}
+
+/* convidado: pega a chave do anfitrião, combina a sua e conversa criptografado */
+let relayClient = null;
+async function startRelayClient() {
+  if (!relayOk()) return null;
+  stopRelayClient();
+  const keys = await genKeys(), pub = await exportPub(keys), base = relayBase(roomCode);
+  const me = { lastHeard: Date.now() };
+  const rc = new RelayConn(async obj => me.client.publish(base + '/h', JSON.stringify(Object.assign({ pid: myPid }, await seal(rc.key, obj)))));
+  me.rc = rc;
+  attachClientConn(rc);
+  me.client = mqttConnect(client => {
+    client.subscribe([base + '/k', base + '/c/' + myPid]);
+  }, async (topic, m) => {
+    if (topic === base + '/k') {
+      if (!m || !m.pub) return;
+      try { rc.key = await deriveKey(keys.privateKey, m.pub); } catch { return; }
+      me.client.publish(base + '/h', JSON.stringify({ pid: myPid, hello: pub }));
+      rc.open = true; me.lastHeard = Date.now(); rc.emit('open');
+      return;
+    }
+    if (!rc.key) return;
+    let data; try { data = await open_(rc.key, m); } catch { return; }
+    me.lastHeard = Date.now();
+    if (data.t !== 'pong') rc.emit('data', data);
+  });
+  // batimento: mostra ao anfitrião que ainda estou aqui e percebe se ele sumiu
+  me.timer = setInterval(() => {
+    if (!rc.open) return;
+    rc.send({ t: 'ping' });
+    if (Date.now() - me.lastHeard > 45000) rc.close();
+  }, 15000);
+  relayClient = me;
+  return rc;
+}
+function stopRelayClient() {
+  if (!relayClient) return;
+  clearInterval(relayClient.timer);
+  candidates.delete(relayClient.rc);
+  relayClient.client.end();
+  relayClient = null;
 }
 
 /* ===================================================================
@@ -969,20 +1108,36 @@ function joinRoom(code) {
   isHost = false; roomCode = code; kicked = false;
   lobbyErr('Conectando…', true);
   clearTimeout(joinTimer);
-  joinTimer = setTimeout(() => { if (!view) lobbyErr('A sala não respondeu. Confira o código e peça ao anfitrião para manter a página aberta.'); }, 12000);
-  ensurePeer(connect);
+  joinTimer = setTimeout(() => { if (!view) lobbyErr('A sala não respondeu. Confira o código e peça ao anfitrião para manter a página aberta.'); }, 20000);
+  connectAny();
 }
-function connect() {
-  const c = peer.connect(PREFIX + roomCode, { reliable: true });
-  conn = c;
+// conexões abertas na tentativa atual (direta e/ou reserva); vale a que trouxer o estado do jogo
+const candidates = new Set();
+let attempt = 0, attemptOk = -1, relayTimer = null;
+function attachClientConn(c) {
+  candidates.add(c);
   c.on('open', () => c.send({ t: 'join', pid: myPid, name: myName, avatar: myAvatar }));
   c.on('data', m => {
-    if (c !== conn) return;
-    if (m.t === 'state') { clearTimeout(joinTimer); reconnecting = false; $('#banner').hidden = true; receive(m.s); }
+    if (!candidates.has(c) || !m) return;
+    if (m.t === 'state') {
+      if (conn !== c) conn = c;
+      attemptOk = attempt; clearTimeout(joinTimer); reconnecting = false; $('#banner').hidden = true; receive(m.s);
+    }
     else if (m.t === 'err') toast(m.msg);
     else if (m.t === 'kicked') { kicked = true; leaveToLobby('O anfitrião removeu você da sala.'); }
   });
-  c.on('close', () => { if (c === conn && inGame && !kicked) autoReconnect(); });
+  c.on('close', () => { candidates.delete(c); if (c === conn && inGame && !kicked) autoReconnect(); });
+}
+function connect() {
+  const c = peer.connect(PREFIX + roomCode, { reliable: true });
+  attachClientConn(c);
+}
+// tenta a conexão direta; se em 5 s nada chegar, abre também a reserva pelo servidor de mensagens
+function connectAny() {
+  const my = ++attempt;
+  ensurePeer(connect);
+  clearTimeout(relayTimer);
+  relayTimer = setTimeout(() => { if (attemptOk !== my && !kicked) startRelayClient(); }, 5000);
 }
 function autoReconnect() {
   if (reconnecting || kicked || isHost) return;
@@ -991,9 +1146,9 @@ function autoReconnect() {
   const tick = () => {
     if (!reconnecting || kicked) return;
     if (conn && conn.open) { reconnecting = false; return; }
-    if (++tries > 30) { reconnecting = false; showBanner('Não foi possível reconectar. O anfitrião pode ter fechado a sala.', true); return; }
-    ensurePeer(connect);
-    setTimeout(tick, 4000);
+    if (++tries > 20) { reconnecting = false; showBanner('Não foi possível reconectar. O anfitrião pode ter fechado a sala.', true); return; }
+    connectAny();
+    setTimeout(tick, 9000);
   };
   tick();
 }
@@ -1041,7 +1196,12 @@ function enterGame() {
 }
 function leaveToLobby(msg) {
   inGame = false; view = null; reconnecting = false; prevRound = null;
+  clearTimeout(relayTimer); attempt++;
   try { conn && conn.close(); } catch {}
+  for (const c of candidates) { try { c.close(); } catch {} }
+  candidates.clear();
+  stopRelayClient();
+  if (isHost) stopRelayHost(true); // apaga a chave da sala no servidor
   try { peer && peer.destroy(); } catch {}
   peer = null; conn = null;
   store.del(sessionStorage, 'op-room');
