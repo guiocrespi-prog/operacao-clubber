@@ -11,8 +11,6 @@
     "platinado": "personagens/platinado.webp",
     "camisa-azul": "personagens/camisa-azul.webp"
   },
-  "cartas": {
-    "civil": "cartas/civil.svg"
-  },
+  "cartas": {},
   "palavras": {}
 }
