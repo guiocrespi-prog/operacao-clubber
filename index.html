@@ -629,7 +629,8 @@ function cardArtFile(k, seed, S) {
   }
   let file = ICONS.cartas[CARD_ICON_KEY[k]];
   if (Array.isArray(file)) file = file.length ? file[hash(seed) % file.length] : null;
-  return file ? { src: 'icones/' + file, portrait: false } : null;
+  // imagem (png/webp/jpg) é retrato de personagem, mostrada como foto de ficha; svg segue como arte pequena
+  return file ? { src: 'icones/' + file, portrait: /\.(webp|png|jpe?g)$/i.test(file) } : null;
 }
 function revealedArt(art, k, hit) {
   // no acerto, uma cópia desfocada da foto por cima dá o brilho suave (desfoque gaussiano)

@@ -12,6 +12,8 @@
     "camisa-azul": "personagens/camisa-azul.webp",
     "menta": "personagens/menta.webp"
   },
-  "cartas": {},
+  "cartas": {
+    "assassino": "cartas/assassina.webp"
+  },
   "palavras": {}
 }
