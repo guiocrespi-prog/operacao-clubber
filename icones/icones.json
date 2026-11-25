@@ -10,7 +10,8 @@
     "trancinha": "personagens/trancinha.webp",
     "platinado": "personagens/platinado.webp",
     "camisa-azul": "personagens/camisa-azul.webp",
-    "menta": "personagens/menta.webp"
+    "menta": "personagens/menta.webp",
+    "barba": "personagens/barba.webp"
   },
   "cartas": {
     "assassino": "cartas/assassina.webp"
