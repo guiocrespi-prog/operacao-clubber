@@ -935,13 +935,27 @@ function hostCreate(restore) {
     else showBanner('Conexão do anfitrião instável (' + e.type + '). Os jogadores podem cair.', true);
   });
   peer.on('disconnected', () => { setTimeout(() => { try { if (peer && !peer.destroyed) peer.reconnect(); } catch {} }, 1000); });
-  peer.on('connection', attachHostConn);
+  peer.on('connection', c => { attachHostConn(c); watchIce(c); });
+}
+
+// Conexão direta que o navegador já deu como perdida (comum no celular): fecha na hora, sem esperar.
+function watchIce(c, onDead) {
+  const hook = () => {
+    const pc = c.peerConnection; if (!pc || pc._watched) return; pc._watched = true;
+    pc.addEventListener('iceconnectionstatechange', () => {
+      const s = pc.iceConnectionState;
+      if (s === 'failed' || s === 'closed') (onDead || (x => { try { x.close(); } catch {} }))(c);
+      else if (s === 'disconnected') setTimeout(() => { if (pc.iceConnectionState === 'disconnected') (onDead || (x => { try { x.close(); } catch {} }))(c); }, 4000);
+    });
+  };
+  if (c.open) hook(); else c.on('open', hook);
 }
 
 // Uma conexão de jogador (direta ou pela reserva) chega ao anfitrião por aqui.
 function attachHostConn(c) {
     c.on('data', m => {
       if (!m || typeof m !== 'object') return;
+      if (m.t === 'ping') { try { c.send({ t: 'pong' }); } catch {} return; } // batimento: responde só para quem perguntou
       if (m.t === 'join') {
         const pid = String(m.pid || '').slice(0, 40); if (!pid || pid === myPid) return;
         if (banned.has(pid)) { try { c.send({ t: 'kicked' }); } catch {} setTimeout(() => { try { c.close(); } catch {} }, 300); return; }
@@ -1045,8 +1059,8 @@ async function startRelayHost(code) {
       rc.emit('data', data);
     }).catch(() => {});
   });
-  // quem some da reserva por mais de 45 s fica offline
-  me.timer = setInterval(() => { for (const rc of peers.values()) if (rc.open && Date.now() - rc.lastSeen > 45000) rc.close(); }, 10000);
+  // quem some da reserva por mais de 25 s fica offline (jogador novo manda batimento a cada 5 s; o antigo, a cada 15 s)
+  me.timer = setInterval(() => { for (const rc of peers.values()) if (rc.open && Date.now() - rc.lastSeen > 25000) rc.close(); }, 5000);
   relayHost = me;
 }
 function stopRelayHost(clearKey) {
@@ -1083,12 +1097,12 @@ async function startRelayClient() {
     me.lastHeard = Date.now();
     if (data.t !== 'pong') rc.emit('data', data);
   });
-  // batimento: mostra ao anfitrião que ainda estou aqui e percebe se ele sumiu
+  // batimento: mostra ao anfitrião que ainda estou aqui e percebe rápido se ele sumiu
   me.timer = setInterval(() => {
     if (!rc.open) return;
     rc.send({ t: 'ping' });
-    if (Date.now() - me.lastHeard > 45000) rc.close();
-  }, 15000);
+    if (Date.now() - me.lastHeard > 16000) rc.close();
+  }, 5000);
   relayClient = me;
   return rc;
 }
@@ -1128,14 +1142,17 @@ function joinRoom(code) {
 }
 // conexões abertas na tentativa atual (direta e/ou reserva); vale a que trouxer o estado do jogo
 const candidates = new Set();
-let attempt = 0, attemptOk = -1, relayTimer = null;
+let attempt = 0, attemptOk = -1, relayTimer = null, preferRelay = false;
 function attachClientConn(c) {
   candidates.add(c);
-  c.on('open', () => c.send({ t: 'join', pid: myPid, name: myName, avatar: myAvatar }));
+  c.on('open', () => { c.lastHeard = Date.now(); c.send({ t: 'join', pid: myPid, name: myName, avatar: myAvatar }); });
   c.on('data', m => {
     if (!candidates.has(c) || !m) return;
+    c.lastHeard = Date.now();
+    if (m.t === 'pong') { c.pongOk = true; return; }
     if (m.t === 'state') {
       if (conn !== c) conn = c;
+      preferRelay = c instanceof RelayConn;
       attemptOk = attempt; clearTimeout(joinTimer); reconnecting = false; $('#banner').hidden = true; receive(m.s);
     }
     else if (m.t === 'err') toast(m.msg);
@@ -1146,13 +1163,21 @@ function attachClientConn(c) {
 function connect() {
   const c = peer.connect(PREFIX + roomCode, { reliable: true });
   attachClientConn(c);
+  watchIce(c, dropConn);
 }
-// tenta a conexão direta; se em 5 s nada chegar, abre também a reserva pelo servidor de mensagens
+// conexão que parou de responder: fecha e reconecta já
+function dropConn(c) {
+  candidates.delete(c);
+  try { c.close(); } catch {}
+  if (c === conn && inGame && !kicked && !isHost) autoReconnect();
+}
+// tenta a conexão direta; se em 3 s nada chegar, abre também a reserva pelo servidor de mensagens.
+// Quem já estava pela reserva (4G, rede que bloqueia) volta direto por ela, sem esperar.
 function connectAny() {
   const my = ++attempt;
   ensurePeer(connect);
   clearTimeout(relayTimer);
-  relayTimer = setTimeout(() => { if (attemptOk !== my && !kicked) startRelayClient(); }, 5000);
+  relayTimer = setTimeout(() => { if (attemptOk !== my && !kicked) startRelayClient(); }, preferRelay ? 0 : 3000);
 }
 function autoReconnect() {
   if (reconnecting || kicked || isHost) return;
@@ -1160,13 +1185,37 @@ function autoReconnect() {
   let tries = 0;
   const tick = () => {
     if (!reconnecting || kicked) return;
-    if (conn && conn.open) { reconnecting = false; return; }
-    if (++tries > 20) { reconnecting = false; showBanner('Não foi possível reconectar. O anfitrião pode ter fechado a sala.', true); return; }
+    if (conn && conn.open && attemptOk === attempt) { reconnecting = false; return; }
+    if (++tries > 30) { reconnecting = false; showBanner('Não foi possível reconectar. O anfitrião pode ter fechado a sala.', true); return; }
     connectAny();
-    setTimeout(tick, 9000);
+    setTimeout(tick, 6000);
   };
   tick();
 }
+/* Batimento da conexão direta: percebe a conexão "morta" (tela apagada, troca de rede no celular)
+   e reconecta em segundos, em vez de deixar o tabuleiro congelado. Só liga se o anfitrião responder
+   ao primeiro ping; com anfitrião de versão antiga fica desligado, para não gerar tráfego à toa. */
+setInterval(() => {
+  if (isHost || !inGame || kicked || !conn || !conn.open || conn instanceof RelayConn) return;
+  const c = conn, now = Date.now();
+  if (c.pongOk === undefined) {
+    if (!c.probeAt) { c.probeAt = now; try { c.send({ t: 'ping' }); } catch {} }
+    else if (now - c.probeAt > 8000) c.pongOk = false;
+    return;
+  }
+  if (!c.pongOk) return;
+  try { c.send({ t: 'ping' }); } catch {}
+  if (now - (c.lastHeard || now) > 13000) dropConn(c);
+}, 4000);
+// voltou para a aba (celular desbloqueado, voltou de outro app): confere a conexão na hora
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || isHost || !inGame || kicked) return;
+  if (!conn || !conn.open) { autoReconnect(); return; }
+  const c = conn; if (c instanceof RelayConn || !c.pongOk) return;
+  const before = c.lastHeard || 0;
+  try { c.send({ t: 'ping' }); } catch {}
+  setTimeout(() => { if (c === conn && (c.lastHeard || 0) <= before) dropConn(c); }, 4000);
+});
 function showBanner(text, withBtn) { $('#banner-text').textContent = text; $('#reconnect').hidden = !withBtn; $('#banner').hidden = false; }
 $('#reconnect').onclick = () => { $('#banner').hidden = true; if (isHost) { hostCreate({ code: roomCode, G, lastWords }); } else autoReconnect(); };
 
